@@ -532,35 +532,6 @@ MediaEntryModal 열기
 
 ---
 
-### 3.5 이미지 업로드 (Supabase Storage, Phase 2)
-
-**데이터 흐름**:
-```
-사용자가 포스터 이미지 선택
-  → File 객체 생성
-  → uploadPoster(file) Server Action 호출
-  → Server: supabase.storage.from('posters').upload(fileName, file)
-  → Storage에 업로드
-  → Public URL 생성: supabase.storage.from('posters').getPublicUrl(fileName)
-  → URL 반환
-  → createPost() 호출 시 poster_url에 URL 포함
-  → DB에 저장
-```
-
-**구현 위치**:
-- `app/actions/storage.ts`: `uploadPoster()` Server Action (신규 생성)
-- `components/nua/media-entry-modal.tsx`: 파일 업로드 UI
-
-**사용 기술**:
-- **Supabase**: Storage API (`supabase.storage.from().upload()`)
-- **Next.js**: Server Actions
-- **React**: File Input 처리
-
-**체크리스트**:
-- [ ] Storage 버킷 생성 ('posters')
-- [ ] 파일 크기 제한
-- [ ] 이미지 형식 검증
-- [ ] 업로드 진행률 표시
 
 ---
 
@@ -584,8 +555,8 @@ MediaEntryModal 열기
 ### Phase 3: 고급 기능 (선택 -> 진행 중)
 12. ⚪ **3.1 외부 미디어 검색** - 데이터 정확성 향상 (통합 구현 예정)
 13. ⚪ **3.2 AI 태깅** - 사용자 편의성
-14. ⚪ **3.3 실시간 업데이트** - 고급 기능
-15. ⚪ **3.4 이미지 업로드** - 보류 (외부 URL 사용)
+14. ⚪ **3.3 상태 변경 시 자동 날짜 업데이트** - 고급 기능
+15. ⚪ **3.4 실시간 업데이트** - 고급 기능
 
 ---
 

@@ -33,6 +33,8 @@ import {
   Edit3,
   X,
   CalendarIcon,
+  Plus,
+  Pencil,
 } from "lucide-react"
 import { format } from "date-fns"
 import type { MediaItem } from "./media-card"
@@ -97,6 +99,13 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate, onDelete 
   const [editOneLineReview, setEditOneLineReview] = useState("")
   const [editDetailedReview, setEditDetailedReview] = useState("")
 
+  // Tag editing state
+  const [editTags, setEditTags] = useState<string[]>([])
+  const [isAddingTag, setIsAddingTag] = useState(false)
+  const [newTag, setNewTag] = useState("")
+  const [editingTagIndex, setEditingTagIndex] = useState<number | null>(null)
+  const [editingTagValue, setEditingTagValue] = useState("")
+
   // Initialize edit form when item changes or edit mode is entered
   useEffect(() => {
     if (item && isEditMode) {
@@ -107,6 +116,7 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate, onDelete 
       setEditEndDate(item.endDate ? new Date(item.endDate) : undefined)
       setEditOneLineReview(item.oneLineReview || "")
       setEditDetailedReview(item.detailedReview || "")
+      setEditTags(item.moods || [])
     }
   }, [item, isEditMode])
 
@@ -114,6 +124,10 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate, onDelete 
   useEffect(() => {
     if (!open) {
       setIsEditMode(false)
+      setIsAddingTag(false)
+      setNewTag("")
+      setEditingTagIndex(null)
+      setEditingTagValue("")
     }
   }, [open])
 
@@ -238,6 +252,7 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate, onDelete 
           endDate: editEndDate ? format(editEndDate, "yyyy-MM-dd") : undefined,
           oneLineReview: editOneLineReview,
           detailedReview: editDetailedReview,
+          moods: editTags,
         }
 
         const result = await updatePost(item.id, updatedItem)
@@ -270,6 +285,10 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate, onDelete 
 
   const handleCancel = () => {
     setIsEditMode(false)
+    setIsAddingTag(false)
+    setNewTag("")
+    setEditingTagIndex(null)
+    setEditingTagValue("")
   }
 
   const handleEnterEditMode = () => {
@@ -280,7 +299,40 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate, onDelete 
     setEditEndDate(item.endDate ? new Date(item.endDate) : undefined)
     setEditOneLineReview(item.oneLineReview || "")
     setEditDetailedReview(item.detailedReview || "")
+    setEditTags(item.moods || [])
     setIsEditMode(true)
+  }
+
+  const handleAddTag = () => {
+    if (newTag.trim()) {
+      setEditTags([...editTags, newTag.trim()])
+      setNewTag("")
+      setIsAddingTag(false)
+    }
+  }
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setEditTags(editTags.filter(tag => tag !== tagToRemove))
+  }
+
+  const handleStartEditingTag = (index: number, tag: string) => {
+    setEditingTagIndex(index)
+    setEditingTagValue(tag)
+  }
+
+  const handleSaveEditedTag = () => {
+    if (editingTagIndex !== null && editingTagValue.trim()) {
+      const newTags = [...editTags]
+      newTags[editingTagIndex] = editingTagValue.trim()
+      setEditTags(newTags)
+      setEditingTagIndex(null)
+      setEditingTagValue("")
+    }
+  }
+
+  const handleCancelEditTag = () => {
+    setEditingTagIndex(null)
+    setEditingTagValue("")
   }
 
   return (
@@ -450,21 +502,109 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate, onDelete 
                 </div>
               </div>
 
-              {/* AI Tags (Read-only in edit mode) */}
+              {/* AI Tags (Editable in edit mode) */}
               <div className="space-y-2">
                 <Label className="text-muted-foreground text-sm flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-neon-purple" />
                   AI-Generated Tags
                 </Label>
                 <div className="flex flex-wrap gap-2">
-                  {item.moods.map((mood) => (
-                    <Badge
-                      key={mood}
-                      className="bg-neon-purple/20 text-neon-purple border border-neon-purple/30 text-sm"
+                  {editTags.map((mood, index) => {
+                    const isEditing = editingTagIndex === index
+
+                    if (isEditing) {
+                      return (
+                        <div key={`editing-${index}`} className="flex items-center gap-2">
+                          <Input
+                            autoFocus
+                            type="text"
+                            value={editingTagValue}
+                            onChange={(e) => setEditingTagValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveEditedTag()
+                              if (e.key === 'Escape') handleCancelEditTag()
+                            }}
+                            onBlur={handleSaveEditedTag}
+                            className="h-7 w-32 text-xs bg-muted border-neon-purple/50 focus:border-neon-purple px-2 py-0"
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 hover:bg-neon-purple/20 hover:text-neon-purple"
+                            onClick={handleSaveEditedTag}
+                            onMouseDown={(e) => e.preventDefault()}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <Badge
+                        key={mood}
+                        className="bg-neon-purple/20 text-neon-purple border border-neon-purple/30 text-sm flex items-center gap-1 pr-1.5"
+                      >
+                        {mood}
+                        <div className="flex items-center gap-0.5 ml-1">
+                          <button
+                            onClick={() => handleStartEditingTag(index, mood)}
+                            className="hover:bg-neon-purple/20 rounded-full p-0.5 transition-colors text-neon-purple/50 hover:text-neon-purple"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            <span className="sr-only">Edit {mood} tag</span>
+                          </button>
+                          <button
+                            onClick={() => handleRemoveTag(mood)}
+                            className="hover:bg-neon-purple/20 rounded-full p-0.5 transition-colors text-neon-purple/50 hover:text-neon-purple"
+                          >
+                            <X className="w-3 h-3" />
+                            <span className="sr-only">Remove {mood} tag</span>
+                          </button>
+                        </div>
+                      </Badge>
+                    )
+                  })}
+
+                  {isAddingTag ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        autoFocus
+                        type="text"
+                        value={newTag}
+                        onChange={(e) => setNewTag(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddTag()
+                          if (e.key === 'Escape') {
+                            setIsAddingTag(false)
+                            setNewTag("")
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!newTag.trim()) setIsAddingTag(false)
+                        }}
+                        className="h-7 w-32 text-xs bg-muted border-neon-purple/50 focus:border-neon-purple px-2 py-0"
+                        placeholder="New tag..."
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 hover:bg-neon-purple/20 hover:text-neon-purple"
+                        onClick={handleAddTag}
+                        onMouseDown={(e) => e.preventDefault()} // Prevent blur before click
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setIsAddingTag(true)}
+                      className="h-7 w-7 flex items-center justify-center rounded-full bg-muted hover:bg-neon-purple/20 border border-transparent hover:border-neon-purple/30 transition-all text-muted-foreground hover:text-neon-purple"
+                      title="Add Tag"
                     >
-                      {mood}
-                    </Badge>
-                  ))}
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
