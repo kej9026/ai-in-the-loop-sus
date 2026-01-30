@@ -684,6 +684,62 @@ export function MediaDetailContent({ item, onUpdate, onDelete, onClose }: MediaD
                             </div>
                         </div>
 
+                        {/* Extended Metadata Section */}
+                        {(item.director || item.developer || item.author) && (
+                            <div className="grid grid-cols-2 gap-4">
+                                {item.type === 'movie' && (
+                                    <>
+                                        {item.director && (
+                                            <div className="space-y-1">
+                                                <Label className="text-muted-foreground text-sm">Director</Label>
+                                                <p className="text-foreground font-medium">{item.director}</p>
+                                            </div>
+                                        )}
+                                        {item.cast && item.cast.length > 0 && (
+                                            <div className="space-y-1 col-span-2">
+                                                <Label className="text-muted-foreground text-sm">Cast</Label>
+                                                <p className="text-foreground text-sm leading-relaxed">
+                                                    {item.cast.join(", ")}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                                {item.type === 'game' && (
+                                    <>
+                                        {item.developer && (
+                                            <div className="space-y-1">
+                                                <Label className="text-muted-foreground text-sm">Developer</Label>
+                                                <p className="text-foreground font-medium">{item.developer}</p>
+                                            </div>
+                                        )}
+                                        {item.publisher && (
+                                            <div className="space-y-1">
+                                                <Label className="text-muted-foreground text-sm">Publisher</Label>
+                                                <p className="text-foreground font-medium">{item.publisher}</p>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                                {item.type === 'book' && (
+                                    <>
+                                        {item.author && (
+                                            <div className="space-y-1">
+                                                <Label className="text-muted-foreground text-sm">Author</Label>
+                                                <p className="text-foreground font-medium">{item.author}</p>
+                                            </div>
+                                        )}
+                                        {item.publisher && (
+                                            <div className="space-y-1">
+                                                <Label className="text-muted-foreground text-sm">Publisher</Label>
+                                                <p className="text-foreground font-medium">{item.publisher}</p>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
+
                         {/* Mood Tags */}
                         <div className="space-y-2">
                             <Label className="text-muted-foreground text-sm flex items-center gap-1.5">

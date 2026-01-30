@@ -28,7 +28,7 @@ import {
 import { format } from "date-fns"
 
 import { createPost } from "@/app/actions/posts"
-import { searchExternalMedia, ExternalMediaItem } from "@/app/actions/external-search"
+import { searchExternalMedia, ExternalMediaItem, fetchMediaDetails } from "@/app/actions/external-search"
 import { generateAITags } from "@/app/actions/ai"
 import { MediaItem, MediaStatus } from "@/types"
 import { toast } from "sonner"
@@ -72,6 +72,8 @@ export function MediaEntryForm({ onCancel, onSuccess }: MediaEntryFormProps) {
     const [aiThemeColor, setAiThemeColor] = useState<string>("")
     const [isSubmitting, setIsSubmitting] = useState(false)
 
+    const [extendedMetadata, setExtendedMetadata] = useState<Record<string, any>>({}) // New State
+
     // Auto-set end date when status changes to completed
     useEffect(() => {
         if (status === "completed" && !endDate) {
@@ -107,12 +109,18 @@ export function MediaEntryForm({ onCancel, onSuccess }: MediaEntryFormProps) {
         setShowAIPreview(true)
 
         try {
-            const aiData = await generateAITags(media.title, media.overview)
+            // Parallel fetch: AI Tags + Extended Details
+            const [aiData, details] = await Promise.all([
+                generateAITags(media.title, media.overview),
+                fetchMediaDetails(media.id, media.type, media) // Fetch Director, Cast, etc.
+            ])
+
             setGeneratedTags(aiData.moods)
             setAiThemeColor(aiData.themeColor)
+            setExtendedMetadata(details) // Store details
         } catch (e) {
-            console.error("AI Error", e)
-            toast.error("AI 태그 생성에 실패했습니다.")
+            console.error("Analysis Error", e)
+            toast.error("정보 분석 및 태그 생성에 실패했습니다.")
         } finally {
             setIsAnalyzing(false)
         }
@@ -500,6 +508,7 @@ export function MediaEntryForm({ onCancel, onSuccess }: MediaEntryFormProps) {
                                 endDate: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
                                 oneLineReview: oneLineReview || undefined,
                                 detailedReview: detailedReview || undefined,
+                                metadata: extendedMetadata // Pass metadata
                             }
 
                             await createPost(newItem)

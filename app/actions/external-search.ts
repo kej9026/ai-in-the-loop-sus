@@ -101,5 +101,62 @@ async function searchGoogleBooks(query: string): Promise<ExternalMediaItem[]> {
         year: item.volumeInfo.publishedDate?.substring(0, 4),
         posterUrl: item.volumeInfo.imageLinks?.thumbnail?.replace("http:", "https:"),
         overview: item.volumeInfo.description,
+        // Google Books search often has author/publisher in list
+        author: item.volumeInfo.authors?.[0],
+        publisher: item.volumeInfo.publisher
     }))
+}
+
+export async function fetchMediaDetails(id: string, type: "movie" | "game" | "book", knownData?: any): Promise<Record<string, any>> {
+    try {
+        switch (type) {
+            case "movie":
+                return await fetchTMDBDetails(id)
+            case "game":
+                return await fetchRAWGDetails(id)
+            case "book":
+                // Book details are usually sufficient from search, but we can pass through what we have
+                return {
+                    author: knownData?.author,
+                    publisher: knownData?.publisher
+                }
+            default:
+                return {}
+        }
+    } catch (error) {
+        console.error("Fetch Details Error:", error)
+        return {}
+    }
+}
+
+async function fetchTMDBDetails(id: string) {
+    if (!TMDB_API_KEY) return {}
+
+    // Fetch Credits for Director & Cast
+    const url = `https://api.themoviedb.org/3/movie/${id}/credits?api_key=${TMDB_API_KEY}&language=ko-KR`
+    const res = await fetch(url)
+    const data = await res.json()
+
+    const director = data.crew?.find((p: any) => p.job === "Director")?.name
+    const cast = data.cast?.slice(0, 5).map((p: any) => p.name)
+
+    return {
+        director,
+        cast
+    }
+}
+
+async function fetchRAWGDetails(id: string) {
+    // RAWG lists don't have developers, need detail endpoint
+    if (!RAWG_API_KEY) return {}
+
+    const url = `https://api.rawg.io/api/games/${id}?key=${RAWG_API_KEY}`
+    const res = await fetch(url)
+    const data = await res.json()
+
+    return {
+        developer: data.developers?.[0]?.name,
+        publisher: data.publishers?.[0]?.name,
+        released: data.released // Full date if needed
+    }
 }

@@ -109,7 +109,8 @@ export async function createPost(item: MediaItem & { externalId?: string, aiMeta
                     type: item.type,
                     poster_url: item.posterUrl,
                     // overview: ??
-                    ai_metadata: item.aiMetadata || {}
+                    ai_metadata: item.aiMetadata || {},
+                    metadata: item.metadata || {} // Save Extended Metadata
                 })
                 .select()
                 .single()

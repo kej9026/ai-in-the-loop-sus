@@ -414,6 +414,32 @@ Dashboard 마운트
 
 ---
 
+### 2.7 라이브러리 아키텍처 (Library View)
+
+**데이터 흐름**:
+```
+사용자 네비게이션 (Library 클릭)
+  → activeNav: 'library'
+  → LibraryView 렌더링
+  → 필터 변경 (Status: 'completed', Sort: 'rating')
+  → getPosts(query, type, page, limit, status, sort) Server Action 호출
+  → Server: 동적 쿼리 빌딩
+    - .eq('status', status)
+    - .order(sortBy === 'rating' ? 'rating' : 'updated_at')
+  → 결과 반환 및 렌더링
+```
+
+**구현 위치**:
+- `components/nua/library-view.tsx`: 라이브러리 메인 컴포넌트
+- `app/actions/posts.ts`: 정렬 및 상태 필터링 로직 추가
+
+**체크리스트**:
+- [x] 대시보드와 라이브러리 뷰 분리
+- [x] 상태별 필터링 (Wishlist/InProgress/Completed)
+- [x] 정렬 (평점순/최신순/가나다순)
+
+---
+
 ## Phase 3: 고급 기능 (Advanced Features)
 
 ### 3.1 외부 미디어 검색 (External Search Integration)
@@ -447,6 +473,41 @@ MediaEntryModal 열기
 - [x] Google Books 연동 (도서)
 - [x] 공통 데이터 포맷 정의 및 매핑
 - [x] 에러 처리 및 Fallback 이미지
+
+### 3.5 확장 메타데이터 및 상세 조회 (Extended Metadata)
+
+**데이터 흐름**:
+```
+사용자 미디어 선택 (검색 결과 클릭)
+  → 클라이언트: 필요한 메타데이터 확인 (Director, Cast 등)
+  → fetchMediaDetails(id, type) Server Action 호출 (신규)
+  → Server: 상세 API 호출
+    - Movie: TMDB /movie/{id}/credits (감독, 배우)
+    - Game: RAWG /games/{id} (개발사, 출시일)
+    - Book: Google Books (이미 volumeInfo에 포함됨)
+  → 응답: { director, cast, developer, publisher, etc. }
+  → 클라이언트: 폼 상태에 메타데이터 병합
+  → 저장 시: media_items 테이블의 'metadata' JSONB 컬럼에 저장
+```
+
+**구현 위치**:
+- `app/actions/external-search.ts`: `fetchMediaDetails` 추가
+- `components/nua/media-entry-form.tsx`: 선택 시 상세 정보 페칭 로직
+- `components/nua/media-detail-content.tsx`: 메타데이터 표시 UI
+
+**DB 스키마 변경**:
+```sql
+ALTER TABLE media_items ADD COLUMN metadata JSONB DEFAULT '{}'::jsonb;
+```
+
+**체크리스트**:
+- [x] DB 컬럼 추가 (Schema 확인 필요)
+- [x] TMDB Credits API 연동
+- [x] RAWG Details API 연동
+- [x] 메타데이터 UI 표시 (상세 모달)
+
+---
+
 
 ---
 

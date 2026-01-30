@@ -22,6 +22,7 @@ export interface MediaMetadata {
   poster_url: string | null
   overview: string | null
   ai_metadata: Record<string, unknown>
+  metadata: Record<string, any> // New column
   created_at: string
   updated_at: string
 }
@@ -58,12 +59,22 @@ export interface MediaItem {
   oneLineReview?: string
   detailedReview?: string
   overview?: string
+  // Extended Metadata
+  director?: string // Movie
+  cast?: string[]   // Movie
+  developer?: string // Game
+  publisher?: string // Game/Book
+  author?: string    // Book
+  metadata?: Record<string, any> // Raw storage
 }
 
 export function userLogToMediaItem(log: UserLog): MediaItem {
   if (!log.media) {
     throw new Error("Media join missing for user log")
   }
+
+  const meta = log.media.metadata || {}
+
   return {
     id: log.id,
     mediaId: log.media.id,
@@ -78,6 +89,14 @@ export function userLogToMediaItem(log: UserLog): MediaItem {
     oneLineReview: log.one_line_review ?? undefined,
     detailedReview: log.detailed_review ?? undefined,
     overview: log.media.overview ?? undefined,
+
+    // Map Metadata
+    director: meta.director,
+    cast: meta.cast,
+    developer: meta.developer,
+    publisher: meta.publisher,
+    author: meta.author,
+    metadata: meta
   }
 }
 
