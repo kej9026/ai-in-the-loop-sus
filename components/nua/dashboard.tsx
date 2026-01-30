@@ -72,28 +72,24 @@ export function Dashboard({ initialItems = [] }: DashboardProps) {
     if (!user) return
     try {
       setDashboardLoading(true)
-      // Fetch Recent 5
-      const { items } = await getPosts(undefined, undefined, 1, 5) // Recent activity ignores global search usually? Or should it respect it? 
-      // Usually Dashboard Recent is just "Recents". Search is for Library.
-      // Let's assume Dashboard ignores TopBar search/filter for now, or maybe TopBar search redirects to Library?
-      // If user types in search while on Dashboard, we should probably switch to Library to show results?
-      // For now, let's keep Dashboard static "Recent" and Stats.
+      // Fetch Recent 5 - Respecting Active Category
+      const { items } = await getPosts(undefined, activeCategory, 1, 5)
       setDashboardItems(items)
 
-      const statsData = await getStats("all")
+      const statsData = await getStats(activeCategory)
       setStats(statsData)
     } catch (error) {
       console.error("Failed to load dashboard data", error)
     } finally {
       setDashboardLoading(false)
     }
-  }, [user])
+  }, [user, activeCategory])
 
   useEffect(() => {
     if (activeNav === 'dashboard') {
       fetchDashboardData()
     }
-  }, [fetchDashboardData, activeNav, refreshKey])
+  }, [fetchDashboardData, activeNav, refreshKey, activeCategory])
 
   // If user searches/filters while on Dashboard, switch to Library automatically?
   // Or just let them navigate. The user prompt implied Library is the place for this.

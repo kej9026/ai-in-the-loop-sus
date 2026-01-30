@@ -601,7 +601,7 @@ export function MediaDetailContent({ item, onUpdate, onDelete, onClose }: MediaD
                                     type="text"
                                     value={editOneLineReview}
                                     onChange={(e) => setEditOneLineReview(e.target.value)}
-                                    placeholder="이 작품을 한 문장으로 정의한다면?"
+                                    placeholder="이 작품에 대한 후기를 한 문장으로 표현한다면?"
                                     className="bg-[#121212] border-border text-foreground placeholder:text-muted-foreground/60 focus:border-neon-purple focus:ring-2 focus:ring-neon-purple/30 transition-all"
                                 />
                             </div>
@@ -614,7 +614,7 @@ export function MediaDetailContent({ item, onUpdate, onDelete, onClose }: MediaD
                                 <textarea
                                     value={editDetailedReview}
                                     onChange={(e) => setEditDetailedReview(e.target.value)}
-                                    placeholder="작품에 대한 심도 깊은 분석이나 개인적인 감상을 자유롭게 기록하세요."
+                                    placeholder="작품을 감상하게 된 계기, 좋아하는 대사, 좋아하는 장면, 좋았던 점, 아쉬웠던 점 등을 자유롭게 기록해보세요."
                                     rows={4}
                                     className="w-full min-h-[120px] max-h-[300px] resize-y rounded-md bg-[#121212] border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-neon-purple focus:outline-none focus:ring-2 focus:ring-neon-purple/30 transition-all"
                                 />
