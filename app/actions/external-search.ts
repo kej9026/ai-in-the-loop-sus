@@ -103,7 +103,8 @@ async function searchGoogleBooks(query: string): Promise<ExternalMediaItem[]> {
         overview: item.volumeInfo.description,
         // Google Books search often has author/publisher in list
         author: item.volumeInfo.authors?.[0],
-        publisher: item.volumeInfo.publisher
+        publisher: item.volumeInfo.publisher,
+        categories: item.volumeInfo.categories // Capture for pass-through
     }))
 }
 
@@ -115,10 +116,10 @@ export async function fetchMediaDetails(id: string, type: "movie" | "game" | "bo
             case "game":
                 return await fetchRAWGDetails(id)
             case "book":
-                // Book details are usually sufficient from search, but we can pass through what we have
                 return {
                     author: knownData?.author,
-                    publisher: knownData?.publisher
+                    publisher: knownData?.publisher,
+                    genres: knownData?.categories
                 }
             default:
                 return {}
@@ -132,31 +133,63 @@ export async function fetchMediaDetails(id: string, type: "movie" | "game" | "bo
 async function fetchTMDBDetails(id: string) {
     if (!TMDB_API_KEY) return {}
 
-    // Fetch Credits for Director & Cast
-    const url = `https://api.themoviedb.org/3/movie/${id}/credits?api_key=${TMDB_API_KEY}&language=ko-KR`
-    const res = await fetch(url)
-    const data = await res.json()
+    try {
+        const [detailsRes, creditsRes] = await Promise.all([
+            fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_API_KEY}&language=ko-KR`),
+            fetch(`https://api.themoviedb.org/3/movie/${id}/credits?api_key=${TMDB_API_KEY}&language=ko-KR`)
+        ])
 
-    const director = data.crew?.find((p: any) => p.job === "Director")?.name
-    const cast = data.cast?.slice(0, 5).map((p: any) => p.name)
+        const details = await detailsRes.json()
+        const credits = await creditsRes.json()
 
-    return {
-        director,
-        cast
+        const director = credits.crew?.find((c: any) => c.job === "Director")?.name
+        const cast = credits.cast?.slice(0, 5).map((c: any) => c.name)
+
+        const genres = details.genres?.map((g: any) => g.name) || []
+        const runtime = details.runtime
+        const series = details.belongs_to_collection
+
+        return {
+            director,
+            cast,
+            genres,
+            runtime,
+            series
+        }
+    } catch (e) {
+        console.error("TMDB Error", e)
+        return {}
     }
 }
 
 async function fetchRAWGDetails(id: string) {
-    // RAWG lists don't have developers, need detail endpoint
     if (!RAWG_API_KEY) return {}
 
-    const url = `https://api.rawg.io/api/games/${id}?key=${RAWG_API_KEY}`
-    const res = await fetch(url)
-    const data = await res.json()
+    try {
+        const url = `https://api.rawg.io/api/games/${id}?key=${RAWG_API_KEY}`
+        const res = await fetch(url)
+        const data = await res.json()
 
-    return {
-        developer: data.developers?.[0]?.name,
-        publisher: data.publishers?.[0]?.name,
-        released: data.released // Full date if needed
+        const developers = data.developers?.map((d: any) => d.name).join(", ")
+        const publishers = data.publishers?.map((p: any) => p.name).join(", ")
+
+        const genres = data.genres?.map((g: any) => g.name) || []
+        const platforms = data.platforms?.map((p: any) => p.platform.name) || []
+        const stores = data.stores?.map((s: any) => s.store.name) || []
+
+        // Basic series info proxy
+        const series = data.game_series_count > 0 ? { count: data.game_series_count } : null
+
+        return {
+            developer: developers,
+            publisher: publishers,
+            genres,
+            platforms,
+            stores,
+            series
+        }
+    } catch (e) {
+        console.error("RAWG Error", e)
+        return {}
     }
 }
