@@ -40,9 +40,16 @@ export async function generateAITags(title: string, overview?: string): Promise<
         })
 
         const prompt = `
-      Analyze the ${overview ? "media item" : "title"} "${title}"${overview ? ` with description: "${overview.substring(0, 200)}..."` : ""}.
+      Analyze the media item "${title}"${overview ? ` based STRICTLY on this description: "${overview.substring(0, 300)}..."` : ""}.
       
-      Generate 5 mood tags in Korean NOUN forms (e.g., "우주", "미래", "철학", "액션", "반전"). Avoid adjectives like "어두운".
+      CRITICAL INSTRUCTION:
+      - If a description is provided, ignore the literal meaning of the title if the description contradicts it. (e.g., if title is "Nature" but description is about "Cyberpunk city", do NOT use nature tags).
+      - Extract the true genre, atmosphere, and themes from the CONTENT/DESCRIPTION.
+      
+      Generate 5 mood tags in Korean NOUN forms (e.g., "우주", "미래", "철학", "액션", "반전"). 
+      - Avoid adjectives like "어두운", use nouns like "어둠".
+      - Tags must be relevant to the ACTUAL PLOT/CONTENT.
+      
       Also generate a hex theme color code that fits the vibe.
       
       Return ONLY a JSON object with this format:

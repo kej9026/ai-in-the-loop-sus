@@ -767,24 +767,28 @@ export function MediaDetailContent({ item, onUpdate, onDelete, onClose }: MediaD
                             </div>
 
                             {/* One-line Review */}
-                            <div className="space-y-2">
-                                <Label className="text-foreground font-medium">
-                                    한줄평 <span className="text-muted-foreground font-normal text-xs ml-1">One-line Review</span>
-                                </Label>
-                                <p className="text-foreground bg-[#121212] rounded-lg px-4 py-3 border border-border">
-                                    {item.oneLineReview || "현실과 환상의 경계를 허무는 걸작"}
-                                </p>
-                            </div>
+                            {item.oneLineReview && (
+                                <div className="space-y-2">
+                                    <Label className="text-foreground font-medium">
+                                        한줄평 <span className="text-muted-foreground font-normal text-xs ml-1">One-line Review</span>
+                                    </Label>
+                                    <p className="text-foreground bg-[#121212] rounded-lg px-4 py-3 border border-border">
+                                        {item.oneLineReview}
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Detailed Review */}
-                            <div className="space-y-2">
-                                <Label className="text-foreground font-medium">
-                                    상세 후기 <span className="text-muted-foreground font-normal text-xs ml-1">Detailed Review</span>
-                                </Label>
-                                <p className="text-foreground/90 bg-[#121212] rounded-lg px-4 py-3 border border-border leading-relaxed">
-                                    {item.detailedReview || "비주얼과 사운드 디자인이 압도적이며, 철학적 질문을 던지는 스토리가 인상적이었다. 특히 주인공의 정체성에 대한 탐구가 깊이 있게 다뤄졌다."}
-                                </p>
-                            </div>
+                            {item.detailedReview && (
+                                <div className="space-y-2">
+                                    <Label className="text-foreground font-medium">
+                                        상세 후기 <span className="text-muted-foreground font-normal text-xs ml-1">Detailed Review</span>
+                                    </Label>
+                                    <p className="text-foreground/90 bg-[#121212] rounded-lg px-4 py-3 border border-border leading-relaxed">
+                                        {item.detailedReview}
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         {/* Actions */}

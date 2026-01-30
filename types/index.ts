@@ -62,9 +62,16 @@ export interface MediaItem {
   // Extended Metadata
   director?: string // Movie
   cast?: string[]   // Movie
+  runtime?: number  // Movie
+
   developer?: string // Game
   publisher?: string // Game/Book
+  platforms?: string[] // Game
+  stores?: string[] // Game
+
   author?: string    // Book
+  genres?: string[] // All
+
   metadata?: Record<string, any> // Raw storage
 }
 
