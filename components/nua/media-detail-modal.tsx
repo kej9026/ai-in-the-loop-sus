@@ -31,9 +31,9 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate, onDelete 
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="max-h-[85vh] p-0 overflow-hidden">
+        <DrawerContent className="h-[85vh] p-0 overflow-hidden rounded-t-xl">
           <DrawerTitle className="sr-only">{item.title}</DrawerTitle>
-          <div className="h-full overflow-hidden">
+          <div className="h-full overflow-hidden flex flex-col">
             <MediaDetailContent
               item={item}
               onUpdate={onUpdate}
