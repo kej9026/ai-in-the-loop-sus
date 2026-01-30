@@ -11,8 +11,8 @@ export default async function Home() {
     return <LandingPage />
   }
 
-  // Initial data fetch on server
-  const { items, total } = await getPosts(undefined, undefined, 1, 24)
+  // Initial data fetch on server (Fetch only 5 recent items)
+  const { items, total } = await getPosts(undefined, undefined, 1, 5)
 
   return <Dashboard initialItems={items} initialTotal={total} />
 }

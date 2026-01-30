@@ -38,6 +38,7 @@ export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProp
   const [totalCount, setTotalCount] = useState(initialTotal)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(initialItems.length < initialTotal)
+  const [limit, setLimit] = useState(initialItems.length > 5 ? 24 : 5)
 
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
@@ -84,12 +85,13 @@ export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProp
     return () => clearTimeout(timer)
   }, [searchQuery, activeCategory, user])
 
-  const loadPosts = async (reset = false) => {
+  const loadPosts = async (reset = false, overrideLimit?: number) => {
     try {
       setIsLoading(true)
 
+      const currentLimit = overrideLimit || limit
       const nextPage = reset ? 1 : page + 1
-      const { items, total } = await getPosts(searchQuery, activeCategory, nextPage)
+      const { items, total } = await getPosts(searchQuery, activeCategory, nextPage, currentLimit)
 
       if (reset) {
         setMediaItems(items)
@@ -115,6 +117,11 @@ export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProp
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleViewAll = () => {
+    setLimit(24)
+    loadPosts(true, 24)
   }
 
   const handleCardClick = (item: MediaItem) => {
@@ -196,9 +203,14 @@ export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProp
               <h2 className="text-lg font-semibold text-foreground">
                 Recent Activity
               </h2>
-              <button className="text-sm text-neon-purple hover:text-neon-purple-dim transition-colors">
-                View All
-              </button>
+              {limit === 5 && hasMore && (
+                <button
+                  onClick={handleViewAll}
+                  className="text-sm text-neon-purple hover:text-neon-purple-dim transition-colors"
+                >
+                  View All
+                </button>
+              )}
             </div>
 
             {/* Media Grid */}
