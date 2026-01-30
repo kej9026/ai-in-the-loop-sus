@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { Search, User, Film, Gamepad2, BookOpen, Plus, LogOut } from "lucide-react"
 import { useAuth } from "./auth-provider"
+import { createSupabaseBrowserClient } from "@/src/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -17,6 +18,10 @@ import {
 
 interface TopBarProps {
   onAddEntry: () => void
+  searchQuery: string
+  setSearchQuery: (query: string) => void
+  activeCategory: string
+  setActiveCategory: (category: string) => void
 }
 
 const categories = [
@@ -26,10 +31,42 @@ const categories = [
   { id: "book", label: "Book", icon: BookOpen },
 ]
 
-export function TopBar({ onAddEntry }: TopBarProps) {
+export function TopBar({
+  onAddEntry,
+  searchQuery,
+  setSearchQuery,
+  activeCategory,
+  setActiveCategory,
+}: TopBarProps) {
   const { user, logout } = useAuth()
-  const [activeCategory, setActiveCategory] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
+  const [profile, setProfile] = useState<{
+    display_name?: string | null
+    avatar_url?: string | null
+  } | null>(null)
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    const supabase = createSupabaseBrowserClient()
+
+    const fetchProfile = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name, avatar_url")
+        .eq("id", user.id)
+        .single()
+
+      if (data) {
+        setProfile(data)
+      }
+    }
+
+    fetchProfile()
+  }, [user?.id])
+
+  const handleLogout = async () => {
+    await logout()
+  }
 
   return (
     <header className="h-16 bg-card/50 backdrop-blur-sm border-b border-border px-6 flex items-center gap-6">
@@ -85,7 +122,12 @@ export function TopBar({ onAddEntry }: TopBarProps) {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
             <Avatar className="h-9 w-9 border border-border">
-              <AvatarImage src="/placeholder-avatar.jpg" alt="User" />
+              <AvatarImage
+                src={
+                  profile?.avatar_url || user?.avatar || "/placeholder-avatar.jpg"
+                }
+                alt="User"
+              />
               <AvatarFallback className="bg-muted text-foreground">
                 <User className="w-4 h-4" />
               </AvatarFallback>
@@ -94,7 +136,7 @@ export function TopBar({ onAddEntry }: TopBarProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56 bg-card border-border" align="end">
           <div className="px-2 py-1.5 text-sm font-medium text-foreground">
-            {user?.name || "NUA User"}
+            {profile?.display_name || user?.name || "NUA User"}
           </div>
           <div className="px-2 pb-2 text-xs text-muted-foreground">
             {user?.email || "user@example.com"}
@@ -107,8 +149,8 @@ export function TopBar({ onAddEntry }: TopBarProps) {
             My Archive
           </DropdownMenuItem>
           <DropdownMenuSeparator className="bg-border" />
-          <DropdownMenuItem 
-            onClick={logout}
+          <DropdownMenuItem
+            onClick={handleLogout}
             className="focus:bg-surface-overlay text-destructive cursor-pointer"
           >
             <LogOut className="w-4 h-4 mr-2" />

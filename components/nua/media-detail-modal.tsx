@@ -36,12 +36,16 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 import type { MediaItem } from "./media-card"
+import { updatePost, deletePost } from "@/app/actions/posts"
+import { toast } from "sonner"
+import { Trash2 } from "lucide-react"
 
 interface MediaDetailModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   item: MediaItem | null
   onUpdate?: (updatedItem: MediaItem) => void
+  onDelete?: (id: string) => void
 }
 
 const typeIcons = {
@@ -80,9 +84,9 @@ const statusOptions = [
   { id: "completed", label: "Completed", icon: CheckCircle2 },
 ]
 
-export function MediaDetailModal({ open, onOpenChange, item, onUpdate }: MediaDetailModalProps) {
+export function MediaDetailModal({ open, onOpenChange, item, onUpdate, onDelete }: MediaDetailModalProps) {
   const [isEditMode, setIsEditMode] = useState(false)
-  
+
   // Edit form state
   const [editTitle, setEditTitle] = useState("")
   const [editStatus, setEditStatus] = useState<"wishlist" | "in-progress" | "completed">("in-progress")
@@ -133,7 +137,7 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate }: MediaDe
     const rect = event.currentTarget.getBoundingClientRect()
     const clickX = event.clientX - rect.left
     const isLeftHalf = clickX < rect.width / 2
-    
+
     if (isLeftHalf) {
       const newRating = starIndex - 0.5
       setEditRating(newRating === editRating ? 0 : newRating)
@@ -222,21 +226,46 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate }: MediaDe
     )
   }
 
-  const handleSave = () => {
-    if (onUpdate) {
-      const updatedItem: MediaItem = {
-        ...item,
-        title: editTitle,
-        status: editStatus,
-        rating: editRating,
-        startDate: editStartDate ? format(editStartDate, "yyyy-MM-dd") : undefined,
-        endDate: editEndDate ? format(editEndDate, "yyyy-MM-dd") : undefined,
-        oneLineReview: editOneLineReview,
-        detailedReview: editDetailedReview,
+  const handleSave = async () => {
+    if (onUpdate && item) {
+      try {
+        const updatedItem: MediaItem = {
+          ...item,
+          title: editTitle,
+          status: editStatus,
+          rating: editRating,
+          startDate: editStartDate ? format(editStartDate, "yyyy-MM-dd") : undefined,
+          endDate: editEndDate ? format(editEndDate, "yyyy-MM-dd") : undefined,
+          oneLineReview: editOneLineReview,
+          detailedReview: editDetailedReview,
+        }
+
+        const result = await updatePost(item.id, updatedItem)
+
+        onUpdate(result)
+        toast.success("변경사항이 저장되었습니다.")
+        setIsEditMode(false)
+      } catch (error) {
+        console.error(error)
+        toast.error("저장에 실패했습니다.")
       }
-      onUpdate(updatedItem)
     }
-    setIsEditMode(false)
+  }
+
+  const handleDelete = async () => {
+    if (!item || !onDelete) return
+
+    if (confirm("정말로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
+      try {
+        await deletePost(item.id)
+        onDelete(item.id)
+        toast.success("삭제되었습니다.")
+        onOpenChange(false)
+      } catch (error) {
+        console.error(error)
+        toast.error("삭제에 실패했습니다.")
+      }
+    }
   }
 
   const handleCancel = () => {
@@ -257,6 +286,7 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate }: MediaDe
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl bg-card/95 backdrop-blur-xl border-neon-purple/30 shadow-2xl shadow-neon-purple/10 p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
+        <DialogTitle className="sr-only">{item.title}</DialogTitle>
         {/* Header with poster background */}
         <div className="relative h-48 overflow-hidden shrink-0">
           <img
@@ -264,8 +294,8 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate }: MediaDe
             alt={item.title}
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/80 to-transparent" />
-          
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
+
           {/* Type and Status badges */}
           <div className="absolute top-4 left-4 flex items-center gap-2">
             <div className="w-10 h-10 rounded-xl bg-card/80 backdrop-blur-sm flex items-center justify-center border border-border">
@@ -275,7 +305,7 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate }: MediaDe
               {typeLabels[item.type]}
             </Badge>
           </div>
-          
+
           <div className="absolute top-4 right-4 flex items-center gap-2">
             {isEditMode && (
               <Badge className="text-xs bg-neon-purple/80 text-white border-neon-purple">
@@ -486,6 +516,14 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate }: MediaDe
                   Cancel
                 </Button>
                 <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  className="flex-1"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+                <Button
                   onClick={handleSave}
                   className="flex-1 bg-neon-purple hover:bg-neon-purple-dim text-primary-foreground"
                 >
@@ -585,6 +623,14 @@ export function MediaDetailModal({ open, onOpenChange, item, onUpdate }: MediaDe
                   className="flex-1 border-border hover:bg-muted"
                 >
                   Close
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  className="flex-1"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
                 </Button>
                 <Button
                   onClick={handleEnterEditMode}

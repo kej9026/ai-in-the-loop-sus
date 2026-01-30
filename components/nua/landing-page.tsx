@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "./auth-provider"
+import { toast } from "sonner"
 import { 
   Archive, 
   Sparkles, 
@@ -21,7 +22,12 @@ export function LandingPage() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
-    await login()
+    try {
+      await login()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error"
+      toast.error("로그인 시작에 실패했어요", { description: message })
+    }
     setIsLoading(false)
   }
 

@@ -1,91 +1,94 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sidebar } from "./sidebar"
 import { TopBar } from "./top-bar"
 import { MediaCard, type MediaItem } from "./media-card"
 import { MediaEntryModal } from "./media-entry-modal"
 import { MediaDetailModal } from "./media-detail-modal"
 import { Activity, TrendingUp, Clock, Star } from "lucide-react"
+import { getPosts } from "@/app/actions/posts"
+import { postToMediaItem } from "@/types"
+import { toast } from "sonner"
+import { useAuth } from "./auth-provider"
+import { getStats, type DashboardStats } from "@/app/actions/stats"
+import { createSupabaseBrowserClient } from "@/src/lib/supabase/client"
 
-const mockMediaItems: MediaItem[] = [
-  {
-    id: "1",
-    title: "Blade Runner 2049",
-    type: "movie",
-    posterUrl: "https://images.unsplash.com/photo-1534809027769-b00d750a6bac?w=400&h=600&fit=crop",
-    rating: 4.5,
-    status: "completed",
-    moods: ["Sci-Fi", "Philosophical", "Neo-Noir"],
-    startDate: "2024-01-10",
-    endDate: "2024-01-10",
-  },
-  {
-    id: "2",
-    title: "Cyberpunk 2077",
-    type: "game",
-    posterUrl: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&h=600&fit=crop",
-    rating: 4,
-    status: "in-progress",
-    moods: ["RPG", "Cyberpunk", "Open World"],
-    startDate: "2024-01-15",
-  },
-  {
-    id: "3",
-    title: "Neuromancer",
-    type: "book",
-    posterUrl: "https://images.unsplash.com/photo-1532012197267-da84d127e765?w=400&h=600&fit=crop",
-    rating: 5,
-    status: "completed",
-    moods: ["Cyberpunk", "Classic", "Influential"],
-    startDate: "2024-01-01",
-    endDate: "2024-01-20",
-  },
-  {
-    id: "4",
-    title: "The Matrix",
-    type: "movie",
-    posterUrl: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=400&h=600&fit=crop",
-    rating: 5,
-    status: "completed",
-    moods: ["Action", "Philosophical", "Iconic"],
-    startDate: "2024-01-05",
-    endDate: "2024-01-05",
-  },
-  {
-    id: "5",
-    title: "Deus Ex: Human Revolution",
-    type: "game",
-    posterUrl: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&h=600&fit=crop",
-    rating: 4,
-    status: "wishlist",
-    moods: ["Stealth", "RPG", "Dystopian"],
-  },
-  {
-    id: "6",
-    title: "Snow Crash",
-    type: "book",
-    posterUrl: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop",
-    rating: 4.5,
-    status: "in-progress",
-    moods: ["Cyberpunk", "Satire", "Visionary"],
-    startDate: "2024-01-22",
-  },
-]
-
-const stats = [
-  { label: "Total Entries", value: "127", icon: Activity, color: "text-neon-purple" },
-  { label: "This Month", value: "12", icon: TrendingUp, color: "text-emerald-400" },
-  { label: "In Progress", value: "5", icon: Clock, color: "text-amber-400" },
-  { label: "Avg Rating", value: "4.2", icon: Star, color: "text-neon-purple" },
+const statsConfig = [
+  { id: "total", label: "Total Entries", icon: Activity, color: "text-neon-purple" },
+  { id: "thisMonth", label: "This Month", icon: TrendingUp, color: "text-emerald-400" },
+  { id: "inProgress", label: "In Progress", icon: Clock, color: "text-amber-400" },
+  { id: "avgRating", label: "Avg Rating", icon: Star, color: "text-neon-purple" },
 ]
 
 export function Dashboard() {
+  const { user } = useAuth()
   const [activeNav, setActiveNav] = useState("dashboard")
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null)
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>(mockMediaItems)
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+  const [stats, setStats] = useState<DashboardStats>({
+    total: 0,
+    thisMonth: 0,
+    inProgress: 0,
+    avgRating: 0,
+  })
+  const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [activeCategory, setActiveCategory] = useState("all")
+
+  // Realtime subscription (Phase 3.4)
+  useEffect(() => {
+    if (!user) return
+
+    const supabase = createSupabaseBrowserClient()
+    const channel = supabase
+      .channel('realtime-posts')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'posts',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          loadPosts()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user, searchQuery, activeCategory])
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (user) loadPosts()
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery, activeCategory, user])
+
+  const loadPosts = async () => {
+    try {
+      setIsLoading(true)
+      const posts = await getPosts(searchQuery, activeCategory)
+      const items = posts.map(postToMediaItem)
+      setMediaItems(items)
+
+      const statsData = await getStats(activeCategory)
+      setStats(statsData)
+    } catch (error) {
+      console.error("Failed to load posts:", error)
+      toast.error("데이터를 불러오는데 실패했습니다.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleCardClick = (item: MediaItem) => {
     setSelectedItem(item)
@@ -99,13 +102,32 @@ export function Dashboard() {
     setSelectedItem(updatedItem)
   }
 
+  const handleDeleteItem = async (deletedId: string) => {
+    setMediaItems((prev) => prev.filter((item) => item.id !== deletedId))
+    setSelectedItem(null)
+
+    // Refresh stats immediately (Phase 3.4 improvement)
+    try {
+      const newStats = await getStats(activeCategory)
+      setStats(newStats)
+    } catch (error) {
+      console.error("Failed to refresh stats:", error)
+    }
+  }
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar activeNav={activeNav} onNavChange={setActiveNav} />
-      
+
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar onAddEntry={() => setIsModalOpen(true)} />
-        
+        <TopBar
+          onAddEntry={() => setIsModalOpen(true)}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          activeCategory={activeCategory}
+          setActiveCategory={setActiveCategory}
+        />
+
         <main className="flex-1 overflow-y-auto p-6">
           {/* Header */}
           <div className="mb-8">
@@ -119,20 +141,23 @@ export function Dashboard() {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {stats.map((stat) => {
-              const Icon = stat.icon
+            {statsConfig.map((config) => {
+              const Icon = config.icon
+              const value = stats[config.id as keyof DashboardStats]
               return (
                 <div
-                  key={stat.label}
+                  key={config.id}
                   className="bg-card border border-border rounded-xl p-4 hover:border-neon-purple/30 transition-colors"
                 >
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                      <Icon className={`w-5 h-5 ${stat.color}`} />
+                      <Icon className={`w-5 h-5 ${config.color}`} />
                     </div>
                   </div>
-                  <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {config.id === "avgRating" ? value.toFixed(1) : value}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{config.label}</p>
                 </div>
               )
             })}
@@ -150,21 +175,36 @@ export function Dashboard() {
             </div>
 
             {/* Media Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-              {mediaItems.map((item) => (
-                <MediaCard key={item.id} item={item} onClick={() => handleCardClick(item)} />
-              ))}
-            </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center p-12">
+                <div className="w-8 h-8 border-2 border-neon-purple border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : mediaItems.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
+                <p>No items found. Add your first entry!</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {mediaItems.map((item) => (
+                  <MediaCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => handleCardClick(item)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </main>
       </div>
 
       <MediaEntryModal open={isModalOpen} onOpenChange={setIsModalOpen} />
-      <MediaDetailModal 
-        open={isDetailModalOpen} 
-        onOpenChange={setIsDetailModalOpen} 
+      <MediaDetailModal
+        open={isDetailModalOpen}
+        onOpenChange={setIsDetailModalOpen}
         item={selectedItem}
         onUpdate={handleUpdateItem}
+        onDelete={handleDeleteItem}
       />
     </div>
   )

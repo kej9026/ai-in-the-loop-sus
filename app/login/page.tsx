@@ -1,19 +1,26 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useAuth } from "@/components/nua/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Archive, Sparkles, Film, Gamepad2, BookOpen } from "lucide-react"
+import { toast } from "sonner"
 
 export default function LoginPage() {
-  const router = useRouter()
+  const { login } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
-    // Simulate login delay
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    router.push("/")
+    try {
+      await login()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error"
+      toast.error("로그인 시작에 실패했어요", { description: message })
+    } finally {
+      // 성공 케이스는 OAuth 리다이렉트가 발생하므로 보통 여기까지 오지 않습니다.
+      setIsLoading(false)
+    }
   }
 
   return (

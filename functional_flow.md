@@ -29,6 +29,37 @@
 
 ### 1.1 Google OAuth 로그인 플로우
 
+#### 최종 설정 검증 체크리스트 (Supabase Dashboard / Google Cloud Console)
+
+> 아래 항목은 “코드가 맞아도 OAuth가 실패하는” 케이스를 거의 전부 커버합니다.
+
+**A. Google Cloud Console**
+- [ ] **OAuth 동의 화면(Consent Screen)** 설정 완료 (앱 이름, 지원 이메일 등)
+- [ ] **OAuth Client (Web application)** 생성 완료
+- [ ] **Authorized JavaScript origins**에 다음이 포함됨
+  - [ ] `http://localhost:3000`
+  - [ ] `https://<your-domain>` (배포 시)
+- [ ] **Authorized redirect URIs**에 다음이 포함됨
+  - [ ] `http://localhost:3000/auth/callback`
+  - [ ] `https://<your-domain>/auth/callback` (배포 시)
+- [ ] 테스트 단계라면 **테스트 사용자(Test users)**에 내 Google 계정 추가(동의 화면이 “테스트” 상태인 경우)
+
+**B. Supabase Dashboard**
+- [ ] Authentication → Providers → **Google 활성화**
+- [ ] Google Provider에 **Client ID / Client Secret** 입력
+- [ ] Authentication → URL Configuration
+  - [ ] **Site URL** = `http://localhost:3000` (개발)
+  - [ ] **Redirect URLs**에 포함
+    - [ ] `http://localhost:3000/auth/callback`
+    - [ ] `https://<your-domain>/auth/callback` (배포 시)
+- [ ] (테스트) Authentication → Users 에서 로그인 후 유저가 생성되는지 확인
+
+**C. 코드/환경 변수**
+- [ ] `.env.local`에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` 설정
+- [x] 클라이언트에서 OAuth 시작: `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: '<origin>/auth/callback' } })`
+- [x] 콜백에서 세션 교환: `/auth/callback` → `supabase.auth.exchangeCodeForSession(code)`
+- [x] 로그인 에러 토스트 처리(사용자 피드백)
+
 **데이터 흐름**:
 ```
 사용자 클릭 (LoginPage)
@@ -54,9 +85,9 @@
 - **Next.js**: `route.ts` (API Route), `useRouter()`
 
 **체크리스트**:
-- [ ] `signInWithOAuth` 호출 시 `redirectTo` 설정
-- [ ] 콜백 라우트에서 세션 교환 처리
-- [ ] 에러 처리 (OAuth 실패, 네트워크 에러)
+- [x] `signInWithOAuth` 호출 시 `redirectTo` 설정
+- [x] 콜백 라우트에서 세션 교환 처리
+- [x] 에러 처리 (OAuth 실패, 네트워크 에러)
 
 ---
 
@@ -82,9 +113,9 @@
 - **React**: `useState`, `useEffect`, Context API
 
 **체크리스트**:
-- [ ] 초기 로딩 상태 관리
-- [ ] 리스너 cleanup 함수 구현
-- [ ] 세션 만료 시 자동 로그아웃 처리
+- [x] 초기 로딩 상태 관리
+- [x] 리스너 cleanup 함수 구현
+- [x] 세션 만료 시 자동 로그아웃 처리
 
 ---
 
@@ -111,9 +142,9 @@ Google OAuth 성공
 - **Supabase**: Database Functions
 
 **체크리스트**:
-- [ ] Trigger 함수 생성 (`handle_new_user`)
-- [ ] `ON CONFLICT DO UPDATE` 로직 (중복 방지)
-- [ ] `SECURITY DEFINER` 권한 설정
+- [x] Trigger 함수 생성 (`handle_new_user`)
+- [x] `ON CONFLICT DO UPDATE` 로직 (중복 방지)
+- [x] `SECURITY DEFINER` 권한 설정
 
 ---
 
@@ -138,9 +169,9 @@ AuthProvider에서 user 확인
 - **React**: `useState`, `useEffect`
 
 **체크리스트**:
-- [ ] 프로필 없을 때 폴백 처리 (user.email 사용)
-- [ ] 로딩 상태 표시
-- [ ] 에러 처리 (프로필 조회 실패)
+- [x] 프로필 없을 때 폴백 처리 (user.email 사용)
+- [x] 로딩 상태 표시
+- [x] 에러 처리 (프로필 조회 실패)
 
 ---
 
@@ -198,10 +229,10 @@ Dashboard 마운트
 - **타입 변환**: `postToMediaItem()` (types/index.ts)
 
 **체크리스트**:
-- [ ] 인증 확인 (`getUser()`)
-- [ ] RLS 정책 테스트 (다른 유저 데이터 접근 불가)
-- [ ] 빈 배열 처리
-- [ ] 에러 처리 및 사용자 피드백
+- [x] 인증 확인 (`getUser()`)
+- [x] RLS 정책 테스트 (다른 유저 데이터 접근 불가)
+- [x] 빈 배열 처리
+- [x] 에러 처리 및 사용자 피드백
 
 ---
 
@@ -234,11 +265,11 @@ Dashboard 마운트
 - **타입 변환**: `mediaItemToPostInsert()`, `postToMediaItem()`
 
 **체크리스트**:
-- [ ] 필수 필드 검증 (title, media_type, status)
-- [ ] 날짜 유효성 검사 (end_date >= start_date)
-- [ ] 에러 처리 (중복, 제약 조건 위반)
-- [ ] 성공 토스트 알림
-- [ ] 모달 닫기 및 폼 리셋
+- [x] 필수 필드 검증 (title, media_type, status)
+- [x] 날짜 유효성 검사 (end_date >= start_date)
+- [x] 에러 처리 (중복, 제약 조건 위반)
+- [x] 성공 토스트 알림
+- [x] 모달 닫기 및 폼 리셋
 
 ---
 
@@ -273,11 +304,11 @@ Dashboard 마운트
 - **타입 변환**: `postToMediaItem()`
 
 **체크리스트**:
-- [ ] 부분 업데이트 지원 (Partial<Post>)
-- [ ] 이중 체크 (id + user_id)로 보안 강화
-- [ ] 날짜 유효성 검사
-- [ ] 낙관적 업데이트 (선택사항)
-- [ ] 에러 처리 및 롤백
+- [x] 부분 업데이트 지원 (Partial<Post>)
+- [x] 이중 체크 (id + user_id)로 보안 강화
+- [x] 날짜 유효성 검사
+- [x] 낙관적 업데이트 (선택사항)
+- [x] 에러 처리 및 롤백
 
 ---
 
@@ -305,10 +336,10 @@ Dashboard 마운트
 - **Next.js**: Server Actions, `revalidatePath()`
 
 **체크리스트**:
-- [ ] 삭제 확인 다이얼로그
-- [ ] 이중 체크 (id + user_id)
-- [ ] 에러 처리 (삭제 실패 시)
-- [ ] 성공 피드백
+- [x] 삭제 확인 다이얼로그
+- [x] 이중 체크 (id + user_id)
+- [x] 에러 처리 (삭제 실패 시)
+- [x] 성공 피드백
 
 ---
 
@@ -340,10 +371,10 @@ Dashboard 마운트
 - **JavaScript**: 배열 메서드 (`filter`, `reduce`)
 
 **체크리스트**:
-- [ ] 집계 로직 정확성 검증
-- [ ] 빈 데이터 처리 (0으로 표시)
-- [ ] 평점 소수점 처리 (toFixed)
-- [ ] 성능 최적화 (필요 시 DB 집계 함수 사용)
+- [x] 집계 로직 정확성 검증
+- [x] 빈 데이터 처리 (0으로 표시)
+- [x] 평점 소수점 처리 (toFixed)
+- [x] 성능 최적화 (필요 시 DB 집계 함수 사용)
 
 ---
 
@@ -376,52 +407,78 @@ Dashboard 마운트
 - **React**: 상태 관리 (`useState`)
 
 **체크리스트**:
-- [ ] 실시간 검색 (debounce 적용 권장)
-- [ ] 빈 검색 결과 처리
-- [ ] 필터 조합 지원 (카테고리 + 검색어)
-- [ ] URL 쿼리 파라미터 동기화 (선택사항)
+- [x] 실시간 검색 (debounce 적용 권장)
+- [x] 빈 검색 결과 처리
+- [x] 필터 조합 지원 (카테고리 + 검색어)
+- [x] URL 쿼리 파라미터 동기화 (선택사항)
 
 ---
 
 ## Phase 3: 고급 기능 (Advanced Features)
 
-### 3.1 AI 태깅 연동 (Gemini API)
+### 3.1 외부 미디어 검색 (External Search Integration)
 
 **데이터 흐름**:
 ```
-사용자 MediaEntryModal에서 제목 입력
-  → 검색어 길이 > 2 확인
-  → generateAITags(title) Server Action 호출
-  → Server: Gemini API 호출
-    - 프롬프트: "제목을 분석해서 moods 배열(3개)과 one_line_review 생성"
-    - 응답: JSON { moods: string[], one_line_review: string }
-  → AI 응답 파싱
-  → moods, oneLineReview 반환
-  → MediaEntryModal의 AI Preview 섹션에 표시
-  → 사용자 확인 후 "Add to Archive" 클릭
-  → createPost() 호출 시 AI 데이터 포함
-  → DB의 moods, one_line_review, ai_metadata에 저장
+MediaEntryModal 열기
+  → 검색어 입력 ("인셉션")
+  → searchExternalMedia(query, type) Server Action 호출
+  → Server: 선택된 타입에 따라 외부 API 분기
+    - Movie: TMDB API (/search/movie)
+    - Game: RAWG API (/games)
+    - Book: Google Books API (/volumes)
+  → 결과 매핑: 공통 포맷 { id, title, poster, date, overview }으로 변환
+  → 클라이언트: 검색 결과 리스트(카드 위젯) 표시
+  → 사용자 클릭
+  → 선택된 데이터로 폼(Title, Date, ImageUrl) 자동 채움
 ```
 
 **구현 위치**:
-- `app/actions/ai.ts`: `generateAITags()` Server Action (신규 생성)
-- `components/nua/media-entry-modal.tsx`: AI 분석 트리거
+- `app/actions/external-search.ts`: 통합 검색 핸들러 (신규 생성)
+- `components/nua/media-entry-modal.tsx`: 검색 UI 연동
 
 **사용 기술**:
-- **Gemini API**: `@google/generative-ai` (설치 필요)
-- **Next.js**: Server Actions
-- **환경 변수**: `GEMINI_API_KEY`
+- **Fetch API**: 외부 REST API 호출
+- **API Keys**: `TMDB_API_KEY`, `RAWG_API_KEY`, `GOOGLE_BOOKS_API_KEY`
 
 **체크리스트**:
-- [ ] Gemini API 키 설정
-- [ ] 프롬프트 엔지니어링 (한국어 지원)
-- [ ] 에러 처리 (API 실패 시 기본값)
-- [ ] 로딩 상태 표시
-- [ ] 응답 파싱 및 검증
+- [x] TMDB 연동 (영화)
+- [x] RAWG 연동 (게임)
+- [x] Google Books 연동 (도서)
+- [x] 공통 데이터 포맷 정의 및 매핑
+- [x] 에러 처리 및 Fallback 이미지
 
 ---
 
-### 3.2 상태 변경 시 자동 날짜 업데이트
+### 3.2 AI 태깅 연동 (Gemini API)
+
+**데이터 흐름**:
+```
+사용자가 미디어 선택 (External Search 후)
+  → generateAITags(title, overview) Server Action 호출
+  → Server: Gemini API 호출
+    - 프롬프트: "이 작품의 분위기(Moods) 5개와 테마 컬러코드를 추천해줘."
+    - 응답: JSON { moods: [], themeColor: '' }
+  → 클라이언트: 응답 수신 후 Tags 필드 자동 채움
+  → 사용자: 한줄평 및 상세 리뷰 직접 작성
+```
+
+**구현 위치**:
+- `app/actions/ai.ts`: `generateAITags()` (신규 생성)
+- `components/nua/media-entry-modal.tsx`: AI 트리거 및 태그 반영
+
+**사용 기술**:
+- **Gemini API**: `@google/generative-ai`
+- **Next.js**: Server Actions
+
+**체크리스트**:
+- [x] Gemini API 연결 테스트
+- [x] 프롬프트 최적화 (태그만 생성)
+- [x] 에러 처리
+
+---
+
+### 3.3 상태 변경 시 자동 날짜 업데이트
 
 **데이터 흐름**:
 ```
@@ -443,13 +500,13 @@ Dashboard 마운트
 - **JavaScript**: 날짜 처리 (`new Date().toISOString().split('T')[0]`)
 
 **체크리스트**:
-- [ ] 상태 변경 감지 로직
-- [ ] end_date 자동 설정
-- [ ] 기존 end_date 보존 (덮어쓰기 방지)
+- [x] 상태 변경 감지 로직
+- [x] end_date 자동 설정
+- [x] 기존 end_date 보존 (덮어쓰기 방지)
 
 ---
 
-### 3.3 실시간 업데이트 (Supabase Realtime, 선택사항)
+### 3.4 실시간 업데이트 (Supabase Realtime, 선택사항)
 
 **데이터 흐름**:
 ```
@@ -469,13 +526,13 @@ Dashboard 마운트
 - **React**: `useEffect` cleanup
 
 **체크리스트**:
-- [ ] Realtime 활성화 (Supabase Dashboard)
-- [ ] 채널 구독 및 cleanup
-- [ ] 이벤트 타입 처리 (INSERT, UPDATE, DELETE)
+- [x] Realtime 활성화 (Supabase Dashboard)
+- [x] 채널 구독 및 cleanup
+- [x] 이벤트 타입 처리 (INSERT, UPDATE, DELETE)
 
 ---
 
-### 3.4 이미지 업로드 (Supabase Storage, Phase 2)
+### 3.5 이미지 업로드 (Supabase Storage, Phase 2)
 
 **데이터 흐름**:
 ```
@@ -524,11 +581,11 @@ Dashboard 마운트
 10. ✅ **2.5 통계 데이터** - 대시보드 완성도
 11. ✅ **2.6 필터링 및 검색** - 사용성 개선
 
-### Phase 3: 고급 기능 (선택)
-12. ⚪ **3.1 AI 태깅** - PRD 요구사항
-13. ⚪ **3.2 자동 날짜 업데이트** - 편의 기능
+### Phase 3: 고급 기능 (선택 -> 진행 중)
+12. ⚪ **3.1 외부 미디어 검색** - 데이터 정확성 향상 (통합 구현 예정)
+13. ⚪ **3.2 AI 태깅** - 사용자 편의성
 14. ⚪ **3.3 실시간 업데이트** - 고급 기능
-15. ⚪ **3.4 이미지 업로드** - Phase 2 기능
+15. ⚪ **3.4 이미지 업로드** - 보류 (외부 URL 사용)
 
 ---
 

@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -35,6 +35,12 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 
+import { createPost } from "@/app/actions/posts"
+import { searchExternalMedia, ExternalMediaItem } from "@/app/actions/external-search"
+import { generateAITags } from "@/app/actions/ai"
+import { MediaItem, MediaStatus, MediaType } from "@/types"
+import { toast } from "sonner"
+
 interface MediaEntryModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -63,8 +69,13 @@ const mockAISummary = "A visually stunning exploration of humanity and memory in
 
 export function MediaEntryModal({ open, onOpenChange }: MediaEntryModalProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedMedia, setSelectedMedia] = useState<typeof mockSearchResults[0] | null>(null)
-  const [startDate, setStartDate] = useState<Date>()
+  const [searchResults, setSearchResults] = useState<ExternalMediaItem[]>([])
+  const [selectedType, setSelectedType] = useState<"movie" | "game" | "book">("movie")
+  const [isSearching, setIsSearching] = useState(false)
+
+  const [selectedMedia, setSelectedMedia] = useState<ExternalMediaItem | null>(null)
+
+  const [startDate, setStartDate] = useState<Date | undefined>(new Date())
   const [endDate, setEndDate] = useState<Date>()
   const [status, setStatus] = useState<string>("in-progress")
   const [rating, setRating] = useState(0)
@@ -74,38 +85,73 @@ export function MediaEntryModal({ open, onOpenChange }: MediaEntryModalProps) {
   const [showResults, setShowResults] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [showAIPreview, setShowAIPreview] = useState(false)
+  const [generatedTags, setGeneratedTags] = useState<string[]>([])
+  const [aiThemeColor, setAiThemeColor] = useState<string>("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query)
-    setShowResults(query.length > 0)
-    if (query.length > 2) {
-      setIsAnalyzing(true)
-      setTimeout(() => {
-        setIsAnalyzing(false)
-        setShowAIPreview(true)
-      }, 1500)
-    } else {
-      setShowAIPreview(false)
-    }
-  }
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (searchQuery.length >= 2 && !selectedMedia) {
+        setIsSearching(true)
+        const results = await searchExternalMedia(searchQuery, selectedType)
+        setSearchResults(results)
+        setShowResults(true)
+        setIsSearching(false)
+      } else if (searchQuery.length === 0) {
+        setSearchResults([])
+        setShowResults(false)
+      }
+    }, 500)
 
-  const handleSelectMedia = (media: typeof mockSearchResults[0]) => {
+    return () => clearTimeout(timer)
+  }, [searchQuery, selectedType, selectedMedia])
+
+  // Reset search when modal closes
+  useEffect(() => {
+    if (!open) handleReset()
+  }, [open])
+
+  const handleSelectMedia = async (media: ExternalMediaItem) => {
     setSelectedMedia(media)
     setSearchQuery(media.title)
     setShowResults(false)
+
+    // Trigger AI Analysis
+    setIsAnalyzing(true)
     setShowAIPreview(true)
+
+    try {
+      const aiData = await generateAITags(media.title, media.overview)
+      setGeneratedTags(aiData.moods)
+      setAiThemeColor(aiData.themeColor)
+    } catch (e) {
+      console.error("AI Error", e)
+      toast.error("AI 태그 생성에 실패했습니다.")
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
+  const handleTypeChange = (type: "movie" | "game" | "book") => {
+    setSelectedType(type)
+    setSearchResults([])
+    // Trigger search again if query exists
   }
 
   const handleReset = () => {
     setSearchQuery("")
+    setSearchResults([])
     setSelectedMedia(null)
-    setStartDate(undefined)
+    setStartDate(new Date())
     setEndDate(undefined)
     setStatus("in-progress")
     setRating(0)
     setOneLineReview("")
     setDetailedReview("")
     setShowAIPreview(false)
+    setGeneratedTags([])
+    setAiThemeColor("")
   }
 
   // Handle star click with 0.5 increment logic
@@ -113,7 +159,7 @@ export function MediaEntryModal({ open, onOpenChange }: MediaEntryModalProps) {
     const rect = event.currentTarget.getBoundingClientRect()
     const clickX = event.clientX - rect.left
     const isLeftHalf = clickX < rect.width / 2
-    
+
     if (isLeftHalf) {
       // Clicked on left half - set to X.5 (half star before this one)
       const newRating = starIndex - 0.5
@@ -128,7 +174,7 @@ export function MediaEntryModal({ open, onOpenChange }: MediaEntryModalProps) {
     const rect = event.currentTarget.getBoundingClientRect()
     const hoverX = event.clientX - rect.left
     const isLeftHalf = hoverX < rect.width / 2
-    
+
     setHoveredRating(isLeftHalf ? starIndex - 0.5 : starIndex)
   }
 
@@ -187,18 +233,47 @@ export function MediaEntryModal({ open, onOpenChange }: MediaEntryModalProps) {
 
         <div className="space-y-6 py-4">
           {/* Search Input */}
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Search Media</Label>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-muted-foreground">Search Media</Label>
+              <div className="flex gap-1">
+                {(["movie", "game", "book"] as const).map((t) => {
+                  const Icon = typeIcons[t]
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => handleTypeChange(t)}
+                      className={cn(
+                        "p-1.5 rounded-md transition-colors",
+                        selectedType === t ? "bg-neon-purple/20 text-neon-purple" : "text-muted-foreground hover:bg-muted"
+                      )}
+                      title={t}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search for movies, games, or books..."
+                placeholder={`Search for ${selectedType}s...`}
                 value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  if (!e.target.value) setSelectedMedia(null)
+                }}
                 className="pl-10 bg-muted border-border focus:border-neon-purple focus:ring-2 focus:ring-neon-purple/20 transition-all"
               />
-              {selectedMedia && (
+              {isSearching && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="w-4 h-4 border-2 border-neon-purple border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {selectedMedia && !isSearching && (
                 <button
                   onClick={handleReset}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
@@ -209,26 +284,30 @@ export function MediaEntryModal({ open, onOpenChange }: MediaEntryModalProps) {
             </div>
 
             {/* Search Results Dropdown */}
-            {showResults && searchQuery.length > 0 && (
-              <div className="absolute z-50 w-[calc(100%-3rem)] mt-1 bg-card border border-border rounded-lg shadow-xl overflow-hidden">
-                {mockSearchResults
-                  .filter((item) =>
-                    item.title.toLowerCase().includes(searchQuery.toLowerCase())
+            {showResults && searchResults.length > 0 && (
+              <div className="absolute z-50 w-[calc(100%-3rem)] mt-1 bg-card border border-border rounded-lg shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                {searchResults.map((result) => {
+                  const Icon = typeIcons[result.type]
+                  return (
+                    <button
+                      key={result.id}
+                      onClick={() => handleSelectMedia(result)}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-overlay transition-colors text-left border-b last:border-0 border-border/50"
+                    >
+                      {result.posterUrl ? (
+                        <img src={result.posterUrl} alt={result.title} className="w-8 h-12 object-cover rounded shadow-sm" />
+                      ) : (
+                        <div className="w-8 h-12 bg-muted flex items-center justify-center rounded">
+                          <Icon className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{result.title}</p>
+                        <p className="text-xs text-muted-foreground">{result.year}</p>
+                      </div>
+                    </button>
                   )
-                  .map((result) => {
-                    const Icon = typeIcons[result.type]
-                    return (
-                      <button
-                        key={result.id}
-                        onClick={() => handleSelectMedia(result)}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-overlay transition-colors text-left"
-                      >
-                        <Icon className="w-4 h-4 text-muted-foreground" />
-                        <span className="flex-1 text-foreground">{result.title}</span>
-                        <span className="text-sm text-muted-foreground">{result.year}</span>
-                      </button>
-                    )
-                  })}
+                })}
               </div>
             )}
           </div>
@@ -371,47 +450,47 @@ export function MediaEntryModal({ open, onOpenChange }: MediaEntryModalProps) {
           </div>
 
           {/* AI Analysis Preview */}
-          <div className="space-y-2">
-            <Label className="text-muted-foreground flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-neon-purple" />
-              Gemini AI Analysis
-            </Label>
-            <div
-              className={cn(
-                "rounded-lg border border-dashed p-4 transition-all",
-                showAIPreview
-                  ? "border-neon-purple/50 bg-neon-purple/5"
-                  : "border-border bg-muted/50"
-              )}
-            >
-              {isAnalyzing ? (
-                <div className="flex items-center justify-center gap-2 py-4">
-                  <div className="w-4 h-4 border-2 border-neon-purple border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm text-muted-foreground">Analyzing...</span>
-                </div>
-              ) : showAIPreview ? (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {mockAITags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        className="bg-neon-purple/20 text-neon-purple border border-neon-purple/30 text-xs"
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
+          {showAIPreview && (
+            <div className="space-y-2">
+              <Label className="text-muted-foreground flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-neon-purple" />
+                Gemini AI Auto-Tags
+              </Label>
+              <div
+                className={cn(
+                  "rounded-lg border border-dashed p-4 transition-all",
+                  generatedTags.length > 0
+                    ? "border-neon-purple/50 bg-neon-purple/5"
+                    : "border-border bg-muted/50"
+                )}
+                style={aiThemeColor ? { borderColor: aiThemeColor + '50', backgroundColor: aiThemeColor + '10' } : undefined}
+              >
+                {isAnalyzing ? (
+                  <div className="flex items-center justify-center gap-2 py-4">
+                    <div className="w-4 h-4 border-2 border-neon-purple border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm text-muted-foreground">Generating Vibe Tags...</span>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {mockAISummary}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-2">
-                  Search for a title to see AI-generated tags and summary
-                </p>
-              )}
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {generatedTags.length > 0 ? generatedTags.map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="outline"
+                          className="bg-background/50 backdrop-blur-sm"
+                          style={aiThemeColor ? { color: aiThemeColor, borderColor: aiThemeColor + '60' } : undefined}
+                        >
+                          #{tag}
+                        </Badge>
+                      )) : (
+                        <span className="text-sm text-muted-foreground">No tags generated.</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
@@ -423,11 +502,42 @@ export function MediaEntryModal({ open, onOpenChange }: MediaEntryModalProps) {
               Cancel
             </Button>
             <Button
-              onClick={() => onOpenChange(false)}
+              onClick={async () => {
+                if (!selectedMedia && !searchQuery) return
+
+                try {
+                  setIsSubmitting(true)
+
+                  const newItem: MediaItem = {
+                    id: "new", // Placeholder, will be generated by DB
+                    title: selectedMedia ? selectedMedia.title : searchQuery,
+                    type: selectedType, // Use selected type
+                    posterUrl: selectedMedia?.posterUrl || "", // Use external poster URL
+                    rating: rating,
+                    status: status as MediaStatus,
+                    moods: generatedTags, // Use AI generated tags
+                    startDate: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
+                    endDate: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
+                    oneLineReview: oneLineReview || undefined,
+                    detailedReview: detailedReview || undefined,
+                  }
+
+                  await createPost(newItem)
+
+                  toast.success("아카이브에 추가되었습니다.")
+                  onOpenChange(false)
+                  handleReset()
+                } catch (error) {
+                  console.error(error)
+                  toast.error("추가에 실패했습니다.")
+                } finally {
+                  setIsSubmitting(false)
+                }
+              }}
               className="flex-1 bg-neon-purple hover:bg-neon-purple-dim text-primary-foreground"
-              disabled={!selectedMedia && !searchQuery}
+              disabled={(!selectedMedia && !searchQuery) || isSubmitting}
             >
-              Add to Archive
+              {isSubmitting ? "Adding..." : "Add to Archive"}
             </Button>
           </div>
         </div>
