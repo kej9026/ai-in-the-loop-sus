@@ -685,14 +685,34 @@ export function MediaDetailContent({ item, onUpdate, onDelete, onClose }: MediaD
                         </div>
 
                         {/* Extended Metadata Section */}
-                        {(item.director || item.developer || item.author) && (
+                        {(item.director || item.developer || item.author || (item.genres && item.genres.length > 0)) && (
                             <div className="grid grid-cols-2 gap-4">
+                                {/* Common: Genres (All types) */}
+                                {item.genres && item.genres.length > 0 && (
+                                    <div className="space-y-1 col-span-2">
+                                        <Label className="text-muted-foreground text-sm">Genres</Label>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {item.genres.map((g: string) => (
+                                                <Badge key={g} variant="outline" className="text-xs bg-secondary/50 border-border">
+                                                    {g}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {item.type === 'movie' && (
                                     <>
                                         {item.director && (
                                             <div className="space-y-1">
                                                 <Label className="text-muted-foreground text-sm">Director</Label>
                                                 <p className="text-foreground font-medium">{item.director}</p>
+                                            </div>
+                                        )}
+                                        {item.runtime && (
+                                            <div className="space-y-1">
+                                                <Label className="text-muted-foreground text-sm">Runtime</Label>
+                                                <p className="text-foreground font-medium">{item.runtime} min</p>
                                             </div>
                                         )}
                                         {item.cast && item.cast.length > 0 && (
@@ -717,6 +737,22 @@ export function MediaDetailContent({ item, onUpdate, onDelete, onClose }: MediaD
                                             <div className="space-y-1">
                                                 <Label className="text-muted-foreground text-sm">Publisher</Label>
                                                 <p className="text-foreground font-medium">{item.publisher}</p>
+                                            </div>
+                                        )}
+                                        {item.platforms && item.platforms.length > 0 && (
+                                            <div className="space-y-1 col-span-2">
+                                                <Label className="text-muted-foreground text-sm">Platforms</Label>
+                                                <p className="text-foreground text-sm leading-relaxed">
+                                                    {item.platforms.join(", ")}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {item.stores && item.stores.length > 0 && (
+                                            <div className="space-y-1 col-span-2">
+                                                <Label className="text-muted-foreground text-sm">Stores</Label>
+                                                <p className="text-foreground text-sm leading-relaxed">
+                                                    {item.stores.join(", ")}
+                                                </p>
                                             </div>
                                         )}
                                     </>
