@@ -28,7 +28,7 @@ export async function getPosts(
         .from("user_logs")
         .select(`
             id, user_id, media_id, status, rating, moods, start_date, end_date, one_line_review, detailed_review,
-            media:media_items!inner(id, title, type, poster_url, overview)
+            media:media_items!inner(id, title, type, poster_url, overview, metadata)
         `, { count: 'exact' })
         .eq("user_id", user.id)
 
