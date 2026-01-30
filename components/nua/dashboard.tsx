@@ -8,7 +8,7 @@ import { MediaEntryModal } from "./media-entry-modal"
 import { MediaDetailModal } from "./media-detail-modal"
 import { Activity, TrendingUp, Clock, Star } from "lucide-react"
 import { getPosts } from "@/app/actions/posts"
-import { postToMediaItem } from "@/types"
+
 import { toast } from "sonner"
 import { useAuth } from "./auth-provider"
 import { getStats, type DashboardStats } from "@/app/actions/stats"
@@ -44,13 +44,13 @@ export function Dashboard() {
 
     const supabase = createSupabaseBrowserClient()
     const channel = supabase
-      .channel('realtime-posts')
+      .channel('realtime-user-logs')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'posts',
+          table: 'user_logs',
           filter: `user_id=eq.${user.id}`,
         },
         () => {
@@ -76,11 +76,13 @@ export function Dashboard() {
   const loadPosts = async () => {
     try {
       setIsLoading(true)
-      const posts = await getPosts(searchQuery, activeCategory)
-      const items = posts.map(postToMediaItem)
-      setMediaItems(items)
 
-      const statsData = await getStats(activeCategory)
+      const [items, statsData] = await Promise.all([
+        getPosts(searchQuery, activeCategory),
+        getStats(activeCategory)
+      ])
+
+      setMediaItems(items)
       setStats(statsData)
     } catch (error) {
       console.error("Failed to load posts:", error)
@@ -198,7 +200,11 @@ export function Dashboard() {
         </main>
       </div>
 
-      <MediaEntryModal open={isModalOpen} onOpenChange={setIsModalOpen} />
+      <MediaEntryModal
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        onCreated={loadPosts}
+      />
       <MediaDetailModal
         open={isDetailModalOpen}
         onOpenChange={setIsDetailModalOpen}

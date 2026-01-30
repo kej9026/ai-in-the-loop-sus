@@ -13,35 +13,40 @@ export interface Profile {
   updated_at: string // timestamptz ISO
 }
 
-export interface Post {
-  id: string // uuid
-  user_id: string // uuid
-
+// Normalized DB Types
+export interface MediaMetadata {
+  id: string
   title: string
-  media_type: MediaType
-  status: MediaStatus
-
+  type: MediaType
+  release_date: string | null
   poster_url: string | null
-  rating: number // numeric(2,1)
+  overview: string | null
+  ai_metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
 
+export interface UserLog {
+  id: string
+  user_id: string
+  media_id: string
+  status: MediaStatus
+  rating: number
   moods: string[]
-
-  start_date: string | null // date (YYYY-MM-DD)
-  end_date: string | null // date (YYYY-MM-DD)
-
+  start_date: string | null
+  end_date: string | null
   one_line_review: string | null
   detailed_review: string | null
-
-  external_id: string | null
-  ai_metadata: Record<string, unknown>
-
-  created_at: string // timestamptz ISO
-  updated_at: string // timestamptz ISO
+  created_at: string
+  updated_at: string
+  // Join result
+  media?: MediaMetadata
 }
 
 // UI shape used by current components (`components/nua/media-card.tsx`)
 export interface MediaItem {
-  id: string
+  id: string // primary key of user_logs
+  mediaId: string // primary key of media_items
   title: string
   type: MediaType
   posterUrl: string
@@ -52,45 +57,28 @@ export interface MediaItem {
   endDate?: string
   oneLineReview?: string
   detailedReview?: string
+  overview?: string
 }
 
-export function postToMediaItem(post: Post): MediaItem {
+export function userLogToMediaItem(log: UserLog): MediaItem {
+  if (!log.media) {
+    throw new Error("Media join missing for user log")
+  }
   return {
-    id: post.id,
-    title: post.title,
-    type: post.media_type,
-    posterUrl: post.poster_url ?? "",
-    rating: Number(post.rating ?? 0),
-    status: post.status,
-    moods: Array.isArray(post.moods) ? post.moods : [],
-    startDate: post.start_date ?? undefined,
-    endDate: post.end_date ?? undefined,
-    oneLineReview: post.one_line_review ?? undefined,
-    detailedReview: post.detailed_review ?? undefined,
+    id: log.id,
+    mediaId: log.media.id,
+    title: log.media.title,
+    type: log.media.type,
+    posterUrl: log.media.poster_url ?? "",
+    rating: Number(log.rating ?? 0),
+    status: log.status,
+    moods: Array.isArray(log.moods) ? log.moods : [],
+    startDate: log.start_date ?? undefined,
+    endDate: log.end_date ?? undefined,
+    oneLineReview: log.one_line_review ?? undefined,
+    detailedReview: log.detailed_review ?? undefined,
+    overview: log.media.overview ?? undefined,
   }
 }
 
-export function mediaItemToPostInsert(
-  userId: string,
-  item: MediaItem & { externalId?: string; aiMetadata?: Record<string, unknown> }
-): Omit<
-  Post,
-  "id" | "created_at" | "updated_at" | "user_id" | "ai_metadata"
-> & { user_id: string; ai_metadata: Record<string, unknown> } {
-  return {
-    user_id: userId,
-    title: item.title,
-    media_type: item.type,
-    status: item.status,
-    poster_url: item.posterUrl || null,
-    rating: item.rating ?? 0,
-    moods: item.moods ?? [],
-    start_date: item.startDate ?? null,
-    end_date: item.endDate ?? null,
-    one_line_review: item.oneLineReview ?? null,
-    detailed_review: item.detailedReview ?? null,
-    external_id: item.externalId ?? null,
-    ai_metadata: item.aiMetadata ?? {},
-  }
-}
 

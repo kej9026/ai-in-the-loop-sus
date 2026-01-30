@@ -1,13 +1,13 @@
 "use server"
 
 import { createSupabaseServerClient } from "@/src/lib/supabase/server"
-import { Post, MediaItem, mediaItemToPostInsert, postToMediaItem } from "@/types"
+import { MediaItem, UserLog, MediaMetadata, userLogToMediaItem } from "@/types"
 import { revalidatePath } from "next/cache"
 
 export async function getPosts(
     searchQuery?: string,
     mediaType?: string
-): Promise<Post[]> {
+): Promise<MediaItem[]> {
     const supabase = await createSupabaseServerClient()
     const {
         data: { user },
@@ -18,17 +18,43 @@ export async function getPosts(
     }
 
     let query = supabase
-        .from("posts")
-        .select("*")
+        .from("user_logs")
+        .select(`
+            *,
+            media:media_items (*)
+        `)
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false })
 
     if (searchQuery) {
-        query = query.ilike("title", `%${searchQuery}%`)
+        // Use !inner to force join and filter by media title
+        query = supabase
+            .from("user_logs")
+            .select(`
+                *,
+                media:media_items!inner(*)
+            `)
+            .eq("user_id", user.id)
+            .ilike("media.title", `%${searchQuery}%`)
+            .order("updated_at", { ascending: false })
     }
 
     if (mediaType && mediaType !== "all") {
-        query = query.eq("media_type", mediaType)
+        // Combine filtering if both search and type are present or just type
+        const selectStmt = searchQuery
+            ? `*, media:media_items!inner(*)`
+            : `*, media:media_items!inner(*)`
+
+        query = supabase
+            .from("user_logs")
+            .select(selectStmt)
+            .eq("user_id", user.id)
+            .eq("media.type", mediaType)
+            .order("updated_at", { ascending: false })
+
+        if (searchQuery) {
+            query = query.ilike("media.title", `%${searchQuery}%`)
+        }
     }
 
     const { data, error } = await query
@@ -38,10 +64,10 @@ export async function getPosts(
         throw new Error("Failed to fetch posts")
     }
 
-    return (data as Post[]) || []
+    return (data as UserLog[]).map(log => userLogToMediaItem(log))
 }
 
-export async function createPost(item: MediaItem): Promise<MediaItem> {
+export async function createPost(item: MediaItem & { externalId?: string, aiMetadata?: Record<string, unknown> }): Promise<MediaItem> {
     const supabase = await createSupabaseServerClient()
     const {
         data: { user },
@@ -51,21 +77,73 @@ export async function createPost(item: MediaItem): Promise<MediaItem> {
         throw new Error("Unauthorized")
     }
 
-    const postData = mediaItemToPostInsert(user.id, item)
+    // 1. Ensure Media Item Exists
+    let mediaId = item.mediaId
 
-    const { data, error } = await supabase
-        .from("posts")
-        .insert(postData)
-        .select()
+    if (!mediaId) {
+        // Search by title/type or external_id logic could go here
+        // For now, always create new media item if no ID provided (or maybe check title exact match?)
+        // Let's check title match to avoid complete duplicates
+        const { data: existingMedia } = await supabase
+            .from("media_items")
+            .select("id")
+            .eq("title", item.title)
+            .eq("type", item.type)
+            .maybeSingle()
+
+        if (existingMedia) {
+            mediaId = existingMedia.id
+        } else {
+            // Create new media item
+            const { data: newMedia, error: mediaError } = await supabase
+                .from("media_items")
+                .insert({
+                    title: item.title,
+                    type: item.type,
+                    poster_url: item.posterUrl,
+                    // overview: ??
+                    ai_metadata: item.aiMetadata || {}
+                })
+                .select()
+                .single()
+
+            if (mediaError || !newMedia) {
+                console.error("Error creating media:", mediaError)
+                throw new Error("Failed to create media item")
+            }
+            mediaId = newMedia.id
+        }
+    }
+
+    // 2. Create User Log
+    const logData = {
+        user_id: user.id,
+        media_id: mediaId,
+        status: item.status,
+        rating: item.rating,
+        moods: item.moods,
+        start_date: item.startDate || null,
+        end_date: item.endDate || null,
+        one_line_review: item.oneLineReview || null,
+        detailed_review: item.detailedReview || null,
+    }
+
+    const { data: newLog, error: logError } = await supabase
+        .from("user_logs")
+        .insert(logData)
+        .select(`
+            *,
+            media:media_items (*)
+        `)
         .single()
 
-    if (error) {
-        console.error("Error creating post:", error)
-        throw new Error("Failed to create post")
+    if (logError) {
+        console.error("Error creating log:", logError)
+        throw new Error("Failed to create user log")
     }
 
     revalidatePath("/")
-    return postToMediaItem(data as Post)
+    return userLogToMediaItem(newLog as UserLog)
 }
 
 export async function updatePost(id: string, item: MediaItem): Promise<MediaItem> {
@@ -78,20 +156,29 @@ export async function updatePost(id: string, item: MediaItem): Promise<MediaItem
         throw new Error("Unauthorized")
     }
 
-    // Auto-update end_date if status is completed and no end_date provided (Phase 3.3)
-    // Auto-update end_date if status is completed (Phase 3.3 Improvement: Always update)
     if (item.status === 'completed') {
         item.endDate = new Date().toISOString().split('T')[0]
     }
 
-    const postData = mediaItemToPostInsert(user.id, item)
+    const logUpdates = {
+        status: item.status,
+        rating: item.rating,
+        moods: item.moods,
+        start_date: item.startDate || null,
+        end_date: item.endDate || null,
+        one_line_review: item.oneLineReview || null,
+        detailed_review: item.detailedReview || null,
+    }
 
-    const { data, error } = await supabase
-        .from("posts")
-        .update(postData)
+    const { data: updatedLog, error } = await supabase
+        .from("user_logs")
+        .update(logUpdates)
         .eq("id", id)
         .eq("user_id", user.id)
-        .select()
+        .select(`
+            *,
+            media:media_items (*)
+        `)
         .single()
 
     if (error) {
@@ -99,8 +186,13 @@ export async function updatePost(id: string, item: MediaItem): Promise<MediaItem
         throw new Error("Failed to update post")
     }
 
+    // Optional: Update MediaMetadata if title/poster changed?
+    // For now we assume media metadata is shared and mostly static or updated separately
+    // But if we wanted to allow user to update shared title... that's risky.
+    // Let's assume title updates only if explicit admin flow. user only updates their log.
+
     revalidatePath("/")
-    return postToMediaItem(data as Post)
+    return userLogToMediaItem(updatedLog as UserLog)
 }
 
 export async function deletePost(id: string): Promise<void> {
@@ -114,7 +206,7 @@ export async function deletePost(id: string): Promise<void> {
     }
 
     const { error } = await supabase
-        .from("posts")
+        .from("user_logs")
         .delete()
         .eq("id", id)
         .eq("user_id", user.id)

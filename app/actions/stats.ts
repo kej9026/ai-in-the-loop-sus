@@ -20,12 +20,17 @@ export async function getStats(type: string = "all"): Promise<DashboardStats> {
     }
 
     let query = supabase
-        .from("posts")
-        .select("status, rating, created_at")
+        .from("user_logs")
+        .select(`
+            status, 
+            rating, 
+            created_at,
+            media:media_items!inner(type)
+        `)
         .eq("user_id", user.id)
 
     if (type !== "all") {
-        query = query.eq("media_type", type)
+        query = query.eq("media.type", type)
     }
 
     const { data, error } = await query
@@ -39,7 +44,7 @@ export async function getStats(type: string = "all"): Promise<DashboardStats> {
     const currentMonth = now.getMonth()
     const currentYear = now.getFullYear()
 
-    const stats = data.reduce(
+    const stats = (data || []).reduce(
         (acc, item) => {
             // Total count
             acc.total++

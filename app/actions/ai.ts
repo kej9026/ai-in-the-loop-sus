@@ -42,7 +42,8 @@ export async function generateAITags(title: string, overview?: string): Promise<
         const prompt = `
       Analyze the ${overview ? "media item" : "title"} "${title}"${overview ? ` with description: "${overview.substring(0, 200)}..."` : ""}.
       
-      Generate 5 mood tags in Korean (e.g., "어두운", "몽환적인", "빠른 전개") and a hex theme color code that fits the vibe.
+      Generate 5 mood tags in Korean NOUN forms (e.g., "우주", "미래", "철학", "액션", "반전"). Avoid adjectives like "어두운".
+      Also generate a hex theme color code that fits the vibe.
       
       Return ONLY a JSON object with this format:
       {
