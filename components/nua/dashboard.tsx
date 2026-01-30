@@ -12,6 +12,7 @@ import { getPosts } from "@/app/actions/posts"
 import { toast } from "sonner"
 import { useAuth } from "./auth-provider"
 import { getStats, type DashboardStats } from "@/app/actions/stats"
+
 import { createSupabaseBrowserClient } from "@/src/lib/supabase/client"
 
 const statsConfig = [
@@ -21,20 +22,30 @@ const statsConfig = [
   { id: "avgRating", label: "Avg Rating", icon: Star, color: "text-neon-purple" },
 ]
 
-export function Dashboard() {
+interface DashboardProps {
+  initialItems?: MediaItem[]
+  initialTotal?: number
+}
+
+export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProps) {
   const { user } = useAuth()
   const [activeNav, setActiveNav] = useState("dashboard")
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null)
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(initialItems)
+  const [totalCount, setTotalCount] = useState(initialTotal)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(initialItems.length < initialTotal)
+
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
     thisMonth: 0,
     inProgress: 0,
     avgRating: 0,
   })
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeCategory, setActiveCategory] = useState("all")
 
@@ -54,7 +65,7 @@ export function Dashboard() {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          loadPosts()
+          loadPosts(true)
         }
       )
       .subscribe()
@@ -67,23 +78,37 @@ export function Dashboard() {
   // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (user) loadPosts()
+      if (user) loadPosts(true)
     }, 300)
 
     return () => clearTimeout(timer)
   }, [searchQuery, activeCategory, user])
 
-  const loadPosts = async () => {
+  const loadPosts = async (reset = false) => {
     try {
       setIsLoading(true)
 
-      const [items, statsData] = await Promise.all([
-        getPosts(searchQuery, activeCategory),
-        getStats(activeCategory)
-      ])
+      const nextPage = reset ? 1 : page + 1
+      const { items, total } = await getPosts(searchQuery, activeCategory, nextPage)
 
-      setMediaItems(items)
-      setStats(statsData)
+      if (reset) {
+        setMediaItems(items)
+      } else {
+        setMediaItems(prev => [...prev, ...items])
+      }
+
+      setTotalCount(total)
+      setPage(nextPage)
+      setHasMore((reset ? items.length : mediaItems.length + items.length) < total)
+
+      if (reset) {
+        try {
+          const statsData = await getStats(activeCategory)
+          setStats(statsData)
+        } catch (statsError) {
+          console.error("Failed to load stats:", statsError)
+        }
+      }
     } catch (error) {
       console.error("Failed to load posts:", error)
       toast.error("데이터를 불러오는데 실패했습니다.")
@@ -196,6 +221,19 @@ export function Dashboard() {
                 ))}
               </div>
             )}
+
+            {/* Load More Button */}
+            {hasMore && (
+              <div className="flex justify-center mt-8 pb-8">
+                <button
+                  onClick={() => loadPosts(false)}
+                  disabled={isLoading}
+                  className="px-6 py-2 rounded-full border border-border bg-card hover:bg-muted text-sm font-medium transition-all disabled:opacity-50"
+                >
+                  {isLoading ? "Loading..." : "Load More"}
+                </button>
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -203,7 +241,7 @@ export function Dashboard() {
       <MediaEntryModal
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
-        onCreated={loadPosts}
+        onCreated={() => loadPosts(true)}
       />
       <MediaDetailModal
         open={isDetailModalOpen}

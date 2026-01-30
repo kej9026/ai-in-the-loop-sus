@@ -6,8 +6,10 @@ import { revalidatePath } from "next/cache"
 
 export async function getPosts(
     searchQuery?: string,
-    mediaType?: string
-): Promise<MediaItem[]> {
+    mediaType?: string,
+    page: number = 1,
+    limit: number = 24
+): Promise<{ items: MediaItem[], total: number }> {
     const supabase = await createSupabaseServerClient()
     const {
         data: { user },
@@ -17,54 +19,37 @@ export async function getPosts(
         throw new Error("Unauthorized")
     }
 
+    const from = (page - 1) * limit
+    const to = from + limit - 1
+
     let query = supabase
         .from("user_logs")
         .select(`
-            *,
-            media:media_items (*)
-        `)
+            id, user_id, media_id, status, rating, moods, start_date, end_date, one_line_review, detailed_review,
+            media:media_items!inner(id, title, type, poster_url, overview)
+        `, { count: 'exact' })
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false })
+        .range(from, to)
 
     if (searchQuery) {
-        // Use !inner to force join and filter by media title
-        query = supabase
-            .from("user_logs")
-            .select(`
-                *,
-                media:media_items!inner(*)
-            `)
-            .eq("user_id", user.id)
-            .ilike("media.title", `%${searchQuery}%`)
-            .order("updated_at", { ascending: false })
+        query = query.ilike("media.title", `%${searchQuery}%`)
     }
 
     if (mediaType && mediaType !== "all") {
-        // Combine filtering if both search and type are present or just type
-        const selectStmt = searchQuery
-            ? `*, media:media_items!inner(*)`
-            : `*, media:media_items!inner(*)`
-
-        query = supabase
-            .from("user_logs")
-            .select(selectStmt)
-            .eq("user_id", user.id)
-            .eq("media.type", mediaType)
-            .order("updated_at", { ascending: false })
-
-        if (searchQuery) {
-            query = query.ilike("media.title", `%${searchQuery}%`)
-        }
+        query = query.eq("media.type", mediaType)
     }
 
-    const { data, error } = await query
+    const { data, error, count } = await query
 
     if (error) {
         console.error("Error fetching posts:", error)
         throw new Error("Failed to fetch posts")
     }
 
-    return (data as UserLog[]).map(log => userLogToMediaItem(log))
+    const items = (data as any[]).map(log => userLogToMediaItem(log as UserLog))
+
+    return { items, total: count || 0 }
 }
 
 export async function createPost(item: MediaItem & { externalId?: string, aiMetadata?: Record<string, unknown> }): Promise<MediaItem> {
