@@ -100,9 +100,16 @@ export function userLogToMediaItem(log: UserLog): MediaItem {
     // Map Metadata
     director: meta.director,
     cast: meta.cast,
+    runtime: meta.runtime,
+
     developer: meta.developer,
     publisher: meta.publisher,
+    platforms: meta.platforms,
+    stores: meta.stores,
+
     author: meta.author,
+    genres: meta.genres,
+
     metadata: meta
   }
 }
