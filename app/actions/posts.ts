@@ -8,7 +8,9 @@ export async function getPosts(
     searchQuery?: string,
     mediaType?: string,
     page: number = 1,
-    limit: number = 24
+    limit: number = 24,
+    status?: string,
+    sortBy: 'updated' | 'rating' | 'title' = 'updated'
 ): Promise<{ items: MediaItem[], total: number }> {
     const supabase = await createSupabaseServerClient()
     const {
@@ -29,9 +31,8 @@ export async function getPosts(
             media:media_items!inner(id, title, type, poster_url, overview)
         `, { count: 'exact' })
         .eq("user_id", user.id)
-        .order("updated_at", { ascending: false })
-        .range(from, to)
 
+    // Apply Filters
     if (searchQuery) {
         query = query.ilike("media.title", `%${searchQuery}%`)
     }
@@ -40,7 +41,28 @@ export async function getPosts(
         query = query.eq("media.type", mediaType)
     }
 
+    if (status && status !== "all") {
+        query = query.eq("status", status)
+    }
+
+    // Apply Sorting
+    switch (sortBy) {
+        case 'rating':
+            query = query.order("rating", { ascending: false })
+            break
+        case 'title':
+            // Title is on the joined table, Supabase supports foreign table sorting but syntax can be tricky.
+            // .order('title', { foreignTable: 'media', ascending: true })
+            query = query.order("title", { foreignTable: "media", ascending: true })
+            break
+        case 'updated':
+        default:
+            query = query.order("updated_at", { ascending: false })
+            break
+    }
+
     const { data, error, count } = await query
+        .range(from, to)
 
     if (error) {
         console.error("Error fetching posts:", error)

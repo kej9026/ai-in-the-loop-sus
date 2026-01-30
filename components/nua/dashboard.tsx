@@ -1,56 +1,47 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Sidebar } from "./sidebar"
 import { TopBar } from "./top-bar"
-import { MediaCard, type MediaItem } from "./media-card"
 import { MediaEntryModal } from "./media-entry-modal"
 import { MediaDetailModal } from "./media-detail-modal"
-import { Activity, TrendingUp, Clock, Star } from "lucide-react"
-import { getPosts } from "@/app/actions/posts"
-
-import { toast } from "sonner"
-import { useAuth } from "./auth-provider"
+import { DashboardView } from "./dashboard-view"
+import { LibraryView } from "./library-view"
+import { type MediaItem } from "@/types"
+import { getPosts, deletePost } from "@/app/actions/posts"
 import { getStats, type DashboardStats } from "@/app/actions/stats"
-
+import { useAuth } from "./auth-provider"
+import { toast } from "sonner"
 import { createSupabaseBrowserClient } from "@/src/lib/supabase/client"
 
-const statsConfig = [
-  { id: "total", label: "Total Entries", icon: Activity, color: "text-neon-purple" },
-  { id: "thisMonth", label: "This Month", icon: TrendingUp, color: "text-emerald-400" },
-  { id: "inProgress", label: "In Progress", icon: Clock, color: "text-amber-400" },
-  { id: "avgRating", label: "Avg Rating", icon: Star, color: "text-neon-purple" },
-]
-
 interface DashboardProps {
-  initialItems?: MediaItem[]
+  initialItems?: MediaItem[] // For Dashboard Recent Activity
   initialTotal?: number
 }
 
-export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProps) {
+export function Dashboard({ initialItems = [] }: DashboardProps) {
   const { user } = useAuth()
   const [activeNav, setActiveNav] = useState("dashboard")
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null)
 
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>(initialItems)
-  const [totalCount, setTotalCount] = useState(initialTotal)
-  const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(initialItems.length < initialTotal)
-  const [limit, setLimit] = useState(initialItems.length > 5 ? 24 : 5)
-
+  // Dashboard Specific State
+  const [dashboardItems, setDashboardItems] = useState<MediaItem[]>(initialItems)
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
     thisMonth: 0,
     inProgress: 0,
     avgRating: 0,
   })
-  const [isLoading, setIsLoading] = useState(false)
+  const [isDashboardLoading, setDashboardLoading] = useState(false)
+
+  // Shared State
   const [searchQuery, setSearchQuery] = useState("")
   const [activeCategory, setActiveCategory] = useState("all")
+  const [refreshKey, setRefreshKey] = useState(0) // Used to trigger re-fetches
 
-  // Realtime subscription (Phase 3.4)
+  // Realtime subscription
   useEffect(() => {
     if (!user) return
 
@@ -66,7 +57,7 @@ export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProp
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          loadPosts(true)
+          handleDataChange()
         }
       )
       .subscribe()
@@ -74,59 +65,49 @@ export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProp
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [user, searchQuery, activeCategory])
+  }, [user])
 
-  // Debounce search query
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (user) loadPosts(true)
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [searchQuery, activeCategory, user])
-
-  const loadPosts = async (reset = false, overrideLimit?: number) => {
+  // Fetch Dashboard Data (Recent + Stats)
+  const fetchDashboardData = useCallback(async () => {
+    if (!user) return
     try {
-      setIsLoading(true)
+      setDashboardLoading(true)
+      // Fetch Recent 5
+      const { items } = await getPosts(undefined, undefined, 1, 5) // Recent activity ignores global search usually? Or should it respect it? 
+      // Usually Dashboard Recent is just "Recents". Search is for Library.
+      // Let's assume Dashboard ignores TopBar search/filter for now, or maybe TopBar search redirects to Library?
+      // If user types in search while on Dashboard, we should probably switch to Library to show results?
+      // For now, let's keep Dashboard static "Recent" and Stats.
+      setDashboardItems(items)
 
-      const currentLimit = overrideLimit || limit
-      const nextPage = reset ? 1 : page + 1
-      const { items, total } = await getPosts(searchQuery, activeCategory, nextPage, currentLimit)
-
-      if (reset) {
-        setMediaItems(items)
-      } else {
-        setMediaItems(prev => [...prev, ...items])
-      }
-
-      setTotalCount(total)
-      setPage(nextPage)
-      setHasMore((reset ? items.length : mediaItems.length + items.length) < total)
-
-      if (reset) {
-        try {
-          const statsData = await getStats(activeCategory)
-          setStats(statsData)
-        } catch (statsError) {
-          console.error("Failed to load stats:", statsError)
-        }
-      }
+      const statsData = await getStats("all")
+      setStats(statsData)
     } catch (error) {
-      console.error("Failed to load posts:", error)
-      toast.error("데이터를 불러오는데 실패했습니다.")
+      console.error("Failed to load dashboard data", error)
     } finally {
-      setIsLoading(false)
+      setDashboardLoading(false)
     }
-  }
+  }, [user])
 
-  const handleViewAll = () => {
-    setLimit(50)
-    loadPosts(true, 50)
-  }
+  useEffect(() => {
+    if (activeNav === 'dashboard') {
+      fetchDashboardData()
+    }
+  }, [fetchDashboardData, activeNav, refreshKey])
 
-  const handleShowLess = () => {
-    setLimit(5)
-    loadPosts(true, 5)
+  // If user searches/filters while on Dashboard, switch to Library automatically?
+  // Or just let them navigate. The user prompt implied Library is the place for this.
+  // "Library... allows you to search and filter".
+  // So if I am on Dashboard and I type in search, it might be intuitive to go to Library.
+  useEffect(() => {
+    if (searchQuery && activeNav === 'dashboard') {
+      setActiveNav('library')
+    }
+  }, [searchQuery, activeNav])
+
+
+  const handleDataChange = () => {
+    setRefreshKey(prev => prev + 1)
   }
 
   const handleCardClick = (item: MediaItem) => {
@@ -134,24 +115,17 @@ export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProp
     setIsDetailModalOpen(true)
   }
 
-  const handleUpdateItem = (updatedItem: MediaItem) => {
-    setMediaItems((prev) =>
-      prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
-    )
-    setSelectedItem(updatedItem)
+  const handleDeleteItem = async (deletedId: string) => {
+    // Optimistic update or just refresh
+    setDashboardItems(prev => prev.filter(i => i.id !== deletedId))
+    setSelectedItem(null)
+    handleDataChange()
   }
 
-  const handleDeleteItem = async (deletedId: string) => {
-    setMediaItems((prev) => prev.filter((item) => item.id !== deletedId))
-    setSelectedItem(null)
-
-    // Refresh stats immediately (Phase 3.4 improvement)
-    try {
-      const newStats = await getStats(activeCategory)
-      setStats(newStats)
-    } catch (error) {
-      console.error("Failed to refresh stats:", error)
-    }
+  const handleUpdateItem = (updatedItem: MediaItem) => {
+    setDashboardItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i))
+    setSelectedItem(updatedItem)
+    handleDataChange()
   }
 
   return (
@@ -169,105 +143,41 @@ export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProp
           onNavChange={setActiveNav}
         />
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-foreground mb-1">
-              Welcome back
-            </h1>
-            <p className="text-muted-foreground">
-              Track your journey through movies, games, and books
-            </p>
-          </div>
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-background">
+          {activeNav === 'dashboard' && (
+            <DashboardView
+              stats={stats}
+              recentItems={dashboardItems}
+              isLoading={isDashboardLoading}
+              onLoadMore={() => setActiveNav('library')}
+              onViewAll={() => setActiveNav('library')}
+              onCardClick={handleCardClick}
+              hasMore={dashboardItems.length >= 5} // Approximate check
+            />
+          )}
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {statsConfig.map((config) => {
-              const Icon = config.icon
-              const value = stats[config.id as keyof DashboardStats]
-              return (
-                <div
-                  key={config.id}
-                  className="bg-card border border-border rounded-xl p-4 hover:border-neon-purple/30 transition-colors"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                      <Icon className={`w-5 h-5 ${config.color}`} />
-                    </div>
-                  </div>
-                  <p className="text-2xl font-bold text-foreground">
-                    {config.id === "avgRating" ? value.toFixed(1) : value}
-                  </p>
-                  <p className="text-sm text-muted-foreground">{config.label}</p>
-                </div>
-              )
-            })}
-          </div>
+          {activeNav === 'library' && (
+            <LibraryView
+              key={refreshKey} // Remount to refresh on data change
+              searchQuery={searchQuery}
+              activeCategory={activeCategory}
+              onCardClick={handleCardClick}
+            />
+          )}
 
-          {/* Recent Activity Section */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">
-                Recent Activity
-              </h2>
-              {limit === 5 && hasMore ? (
-                <button
-                  onClick={handleViewAll}
-                  className="text-sm text-neon-purple hover:text-neon-purple-dim transition-colors"
-                >
-                  View All
-                </button>
-              ) : limit > 5 ? (
-                <button
-                  onClick={handleShowLess}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Back to Recent
-                </button>
-              ) : null}
+          {/* Fallback for other tabs not implemented yet */}
+          {(activeNav !== 'dashboard' && activeNav !== 'library') && (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              Coming Soon
             </div>
-
-            {/* Media Grid */}
-            {isLoading ? (
-              <div className="flex items-center justify-center p-12">
-                <div className="w-8 h-8 border-2 border-neon-purple border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : mediaItems.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
-                <p>No items found. Add your first entry!</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                {mediaItems.map((item) => (
-                  <MediaCard
-                    key={item.id}
-                    item={item}
-                    onClick={() => handleCardClick(item)}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Load More Button */}
-            {hasMore && (
-              <div className="flex justify-center mt-8 pb-8">
-                <button
-                  onClick={() => loadPosts(false)}
-                  disabled={isLoading}
-                  className="px-6 py-2 rounded-full border border-border bg-card hover:bg-muted text-sm font-medium transition-all disabled:opacity-50"
-                >
-                  {isLoading ? "Loading..." : "Load More"}
-                </button>
-              </div>
-            )}
-          </div>
+          )}
         </main>
       </div>
 
       <MediaEntryModal
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
-        onCreated={() => loadPosts(true)}
+        onCreated={handleDataChange}
       />
       <MediaDetailModal
         open={isDetailModalOpen}
