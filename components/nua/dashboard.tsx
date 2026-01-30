@@ -120,8 +120,13 @@ export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProp
   }
 
   const handleViewAll = () => {
-    setLimit(24)
-    loadPosts(true, 24)
+    setLimit(50)
+    loadPosts(true, 50)
+  }
+
+  const handleShowLess = () => {
+    setLimit(5)
+    loadPosts(true, 5)
   }
 
   const handleCardClick = (item: MediaItem) => {
@@ -203,14 +208,21 @@ export function Dashboard({ initialItems = [], initialTotal = 0 }: DashboardProp
               <h2 className="text-lg font-semibold text-foreground">
                 Recent Activity
               </h2>
-              {limit === 5 && hasMore && (
+              {limit === 5 && hasMore ? (
                 <button
                   onClick={handleViewAll}
                   className="text-sm text-neon-purple hover:text-neon-purple-dim transition-colors"
                 >
                   View All
                 </button>
-              )}
+              ) : limit > 5 ? (
+                <button
+                  onClick={handleShowLess}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Back to Recent
+                </button>
+              ) : null}
             </div>
 
             {/* Media Grid */}
